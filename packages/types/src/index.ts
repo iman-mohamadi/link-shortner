@@ -1,21 +1,21 @@
-import { Type, Static } from '@sinclair/typebox';
+import { z } from 'zod';
 
 // Strictly snake_case for backend payloads
-export const CreateLinkSchema = Type.Object({
-  original_url: Type.String({ format: 'uri' }),
-  custom_alias: Type.Optional(Type.String()),
-  expires_at: Type.Optional(Type.String({ format: 'date-time' })),
-  password: Type.Optional(Type.String()),
-  metadata: Type.Optional(Type.Any()),
+export const CreateLinkSchema = z.object({
+  original_url: z.string().url(),
+  custom_alias: z.string().optional(),
+  expires_at: z.string().datetime().optional(),
+  password: z.string().optional(),
+  metadata: z.any().optional(),
 });
 
 // Infer the TypeScript type from the schema
-export type CreateLinkType = Static<typeof CreateLinkSchema>;
+export type CreateLinkType = z.infer<typeof CreateLinkSchema>;
 
 // Example Auth Schema
-export const LoginSchema = Type.Object({
-  phone_number: Type.String(),
-  verification_code: Type.String()
+export const LoginSchema = z.object({
+  phone_number: z.string(),
+  verification_code: z.string()
 });
 
-export type LoginType = Static<typeof LoginSchema>;
+export type LoginType = z.infer<typeof LoginSchema>;

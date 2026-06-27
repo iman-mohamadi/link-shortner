@@ -39,12 +39,12 @@ export default function AnalyticsPage({ params }: { params: { id: string } }) {
 
   const countryData = stats?.countries.map(c => ({
     name: c.country,
-    value: c._count.country,
+    value: c.count,
   })) || [];
 
   const deviceData = stats?.devices.map(d => ({
     name: d.device,
-    value: d._count.device,
+    value: d.count,
   })) || [];
 
   if (loading) {

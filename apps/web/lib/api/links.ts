@@ -1,30 +1,75 @@
-import { apiClient } from './client';
-import type { 
-  CreateLinkInput, 
-  CreateLinkResponse, 
-  Link, 
-  LinkStats, 
-  UpdateLinkInput 
+import { apiClient, ApiError } from './client';
+import type {
+  CreateLinkInput,
+  CreateLinkResponse,
+  Link,
+  LinkStats,
+  UpdateLinkInput,
+  LinkStatsResponse,
+  UserLinksResponse
 } from './types';
 
 export const linksApi = {
   createLink: async (data: CreateLinkInput): Promise<CreateLinkResponse> => {
-    return apiClient.post<CreateLinkResponse>('/links/create', data);
+    try {
+      const response = await apiClient.post<CreateLinkResponse>('/api/links/create', data);
+      return response.data || response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
   },
 
   getMyLinks: async (): Promise<Link[]> => {
-    return apiClient.get<Link[]>('/user/me/links');
+    try {
+      const response = await apiClient.get<Link[]>('/api/user/me/links');
+      return response.data || [];
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
   },
 
   updateLink: async (id: string, data: UpdateLinkInput): Promise<{ message: string; data: Link }> => {
-    return apiClient.patch<{ message: string; data: Link }>(`/user/links/${id}`, data);
+    try {
+      const response = await apiClient.patch<Link>(`/api/user/links/${id}`, data);
+      return {
+        message: response.message || 'Link updated',
+        data: response.data || {}
+      };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
   },
 
   deleteLink: async (id: string): Promise<{ message: string }> => {
-    return apiClient.delete<{ message: string }>(`/user/links/${id}`);
+    try {
+      const response = await apiClient.delete<void>(`/api/user/links/${id}`);
+      return { message: response.message || 'Link deleted' };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
   },
 
   getLinkStats: async (id: string): Promise<LinkStats> => {
-    return apiClient.get<LinkStats>(`/user/links/${id}/stats`);
+    try {
+      const response = await apiClient.get<LinkStats>(`/api/user/links/${id}/stats`);
+      return response.data || {};
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw new Error(error.message);
+      }
+      throw error;
+    }
   },
 };
