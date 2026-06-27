@@ -1,47 +1,42 @@
-import { FastifyReply, FastifyRequest } from 'fastify';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { CreateLinkType } from '@repo/types';
 import { prisma } from '../config/prisma';
 import { nanoid } from 'nanoid';
-import { fetchMetadata } from '../utils/metadata';
 import { generateQRCode } from '../utils/qrcode';
 
-export const createLinkHandler = async (request: FastifyRequest<{ Body: any }>, reply: FastifyReply) => {
+export const createLinkHandler = async (
+  request: FastifyRequest<{ Body: CreateLinkType }>,
+  reply: FastifyReply
+) => {
   try {
-    const { originalUrl, customSlug, password, expiresAt } = request.body;
-    const user = request.user;
+    const { original_url, custom_alias, expires_at, password, metadata } = request.body;
+    const user = request.user as any;
 
     // Pro validation for Custom Slugs
-    if (customSlug && !user.isPro) {
+    if (custom_alias && !user.isPro) {
       return reply.status(403).send({ error: 'Upgrade to Pro for custom slugs' });
     }
 
-    const slug = customSlug || nanoid(6);
+    const shortCode = custom_alias || nanoid(6);
     
-    // Fetch Metadata & QR in parallel.
-    // We attach a .catch to fetchMetadata so a bad target URL doesn't crash creation.
-    const [metadata, qrCode] = await Promise.all([
-      fetchMetadata(originalUrl).catch(err => {
-        request.log.warn(`Metadata fetch failed for ${originalUrl}: ${err.message}`);
-        return { title: null, description: null, favicon: null }; // Fallback defaults
-      }),
-      generateQRCode(slug)
-    ]);
+    // Generate QR Code
+    const qrCode = await generateQRCode(shortCode);
 
     const link = await prisma.link.create({
       data: {
-        originalUrl,
-        slug,
-        ...metadata,
-        password: user.isPro ? password : null,
-        expiresAt: user.isPro && expiresAt ? new Date(expiresAt) : null,
-        userId: user.id,
-        customSlug: !!customSlug
-      }
+        originalUrl: original_url,
+        slug: shortCode,
+        expiresAt: expires_at ? new Date(expires_at) : null,
+        password: password || null,
+        userId: user?.id,
+        customSlug: !!custom_alias,
+      },
     });
 
     return reply.send({
       message: 'Link created',
       shortUrl: `http://localhost:5000/${link.slug}`,
-      qrCode, 
+      qrCode,
       data: link
     });
 

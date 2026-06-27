@@ -2,6 +2,7 @@ import { Geist, Geist_Mono, Figtree, Roboto_Slab } from "next/font/google"
 
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SmoothScroll } from "@/components/providers/smooth-scroll"
 import { cn } from "@workspace/ui/lib/utils";
 
 const robotoSlabHeading = Roboto_Slab({subsets:['latin'],variable:'--font-heading'});
@@ -25,7 +26,10 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", figtree.variable, robotoSlabHeading.variable)}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <SmoothScroll />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
