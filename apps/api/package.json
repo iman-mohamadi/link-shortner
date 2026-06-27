@@ -1,0 +1,47 @@
+{
+  "name": "@link-shortner/api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/jwt": "^10.0.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "axios": "^1.16.0",
+    "bcrypt": "^6.0.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "fastify-type-provider-zod": "^6.1.0",
+    "geoip-lite": "^2.0.2",
+    "ioredis": "^5.10.1",
+    "nanoid": "^5.1.11",
+    "pg": "^8.20.0",
+    "qrcode": "^1.5.4",
+    "ua-parser-js": "^2.0.9",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/node": "^25.6.2",
+    "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/ua-parser-js": "^0.7.39",
+    "pino-pretty": "^13.1.3",
+    "prisma": "^7.8.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

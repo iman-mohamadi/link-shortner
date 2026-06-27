@@ -1,0 +1,19 @@
+import { FastifyInstance } from 'fastify';
+import { 
+  getMyLinksHandler, 
+  updateLinkHandler, 
+  deleteLinkHandler, 
+  getLinkStatsHandler 
+} from '../controllers/user.controller';
+import { authenticate } from '../middlewares/auth.middleware';
+import { updateLinkSchema } from '../schemas/user.schema';
+
+export async function userRoutes(fastify: FastifyInstance) {
+  // Add the guard to the entire scope of these routes
+  fastify.addHook('onRequest', authenticate);
+
+  fastify.get('/me/links', getMyLinksHandler);
+  fastify.patch('/links/:id', { schema: { body: updateLinkSchema } }, updateLinkHandler);
+  fastify.delete('/links/:id', deleteLinkHandler);
+  fastify.get('/links/:id/stats', getLinkStatsHandler);
+}
