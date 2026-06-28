@@ -1,214 +1,284 @@
-'use client';
+"use client"
 
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { Plus, MoreVertical, Copy, Trash2, BarChart2, LogOut, Search } from 'lucide-react';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GradientButton } from '@/components/ui/gradient-button';
-import { GradientInput } from '@/components/ui/gradient-input';
-import { linksApi, authApi, Link } from '@/lib/api';
-import { format } from 'date-fns';
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { AnimatePresence, motion } from "framer-motion"
+import { format } from "date-fns"
+import {
+  BarChart2,
+  Calendar,
+  ExternalLink,
+  Link2,
+  Lock,
+  MousePointerClick,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react"
+import { AppNav } from "@/components/layout/app-nav"
+import { Surface } from "@/components/ui/surface"
+import { Field } from "@/components/ui/field"
+import { MagneticButton, MagneticLink } from "@/components/ui/magnetic-button"
+import { Badge, CopyButton, Skeleton, StatTile } from "@/components/ui/bits"
+import { Eyebrow } from "@/components/ui/kinetic-text"
+import { toast } from "@/components/ui/toaster"
+import { useRequireAuth } from "@/lib/hooks/use-auth"
+import { linksApi } from "@/lib/api/links"
+import type { Link as LinkModel } from "@/lib/api/types"
+import { prettyUrl, shortDisplay, shortUrl } from "@/lib/format"
+import { reveal, viewport } from "@/lib/motion"
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [links, setLinks] = useState<Link[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { ready, user } = useRequireAuth()
+  const [links, setLinks] = useState<LinkModel[]>([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState("")
+  const [pendingDelete, setPendingDelete] = useState<LinkModel | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    fetchLinks();
-  }, []);
+    if (!ready) return
+    let active = true
+    setLoading(true)
+    linksApi
+      .getMyLinks()
+      .then((data) => active && setLinks(data))
+      .catch((err) => active && toast.error(err.message || "Failed to load links"))
+      .finally(() => active && setLoading(false))
+    return () => {
+      active = false
+    }
+  }, [ready])
 
-  const fetchLinks = async () => {
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return links
+    return links.filter(
+      (l) => l.originalUrl.toLowerCase().includes(q) || l.slug.toLowerCase().includes(q)
+    )
+  }, [links, query])
+
+  const totalClicks = useMemo(() => links.reduce((sum, l) => sum + (l.clicks || 0), 0), [links])
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      const data = await linksApi.getMyLinks();
-      setLinks(data);
-    } catch (error) {
-      console.error('Failed to fetch links:', error);
+      await linksApi.deleteLink(pendingDelete.id)
+      setLinks((prev) => prev.filter((l) => l.id !== pendingDelete.id))
+      toast.success("Link deleted")
+      setPendingDelete(null)
+    } catch (err: any) {
+      toast.error(err.message || "Could not delete")
     } finally {
-      setLoading(false);
+      setDeleting(false)
     }
-  };
+  }
 
-  const handleCopy = async (shortUrl: string, id: string) => {
-    await navigator.clipboard.writeText(shortUrl);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this link?')) return;
-    
-    try {
-      await linksApi.deleteLink(id);
-      setLinks(links.filter(link => link.id !== id));
-    } catch (error) {
-      console.error('Failed to delete link:', error);
-    }
-  };
-
-  const handleLogout = () => {
-    authApi.logout();
-    router.push('/');
-  };
-
-  const filteredLinks = links.filter(link =>
-    link.originalUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    link.shortCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  if (!ready) return null
 
   return (
-    <main className="min-h-screen bg-[#0f0f1a]">
-      <div className="container mx-auto px-6 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
-        >
+    <>
+      <AppNav />
+      <main className="relative mx-auto max-w-6xl px-4 pb-24 pt-12">
+        {/* Header */}
+        <motion.div variants={reveal} initial="hidden" animate="show" className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Dashboard</h1>
-            <p className="text-white/60">Manage your links and track performance</p>
+            <Eyebrow className="mb-4">
+              Welcome back{user?.isPro ? "" : ""}
+            </Eyebrow>
+            <h1 className="font-display text-4xl font-semibold tracking-tight text-chrome sm:text-5xl">
+              Your links
+            </h1>
+            <p className="mt-2 text-sm text-[var(--text-mid)]">
+              {user?.phone}
+              {user?.isPro && <Badge tone="pro" className="ml-3">PRO</Badge>}
+            </p>
           </div>
-          
-          <div className="flex gap-3">
-            <GradientButton onClick={() => router.push('/create')} size="md">
-              <Plus className="w-5 h-5" />
-              Create Link
-            </GradientButton>
-            <GradientButton
-              onClick={handleLogout}
-              variant="outline"
-              size="md"
-            >
-              <LogOut className="w-5 h-5" />
-            </GradientButton>
-          </div>
+          <MagneticLink href="/create" size="md">
+            <Plus className="size-4" /> New link
+          </MagneticLink>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8"
-        >
-          <GradientInput
-            placeholder="Search links..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            icon={<Search className="w-5 h-5" />}
+        {/* Summary */}
+        <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <StatTile value={links.length} label="Links" icon={<Link2 className="size-4" />} />
+          <StatTile value={totalClicks.toLocaleString()} label="Total clicks" icon={<MousePointerClick className="size-4" />} />
+          <StatTile
+            value={user?.isPro ? "Pro" : "Free"}
+            label="Plan"
+            icon={<BarChart2 className="size-4" />}
           />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        {/* Search */}
+        <div className="mt-10 max-w-md">
+          <Field
+            name="search"
+            placeholder="Search by slug or URL…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            icon={<Search className="size-5" />}
+          />
+        </div>
+
+        {/* Grid */}
+        <div className="mt-8">
+          {loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-44" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState hasLinks={links.length > 0} />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <AnimatePresence mode="popLayout">
+                {filtered.map((link, i) => (
+                  <motion.div
+                    key={link.id}
+                    layout
+                    variants={reveal}
+                    initial="hidden"
+                    whileInView="show"
+                    viewport={viewport}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ delay: (i % 3) * 0.04 }}
+                  >
+                    <LinkCard link={link} onDelete={() => setPendingDelete(link)} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Delete confirmation */}
+      <AnimatePresence>
+        {pendingDelete && (
+          <motion.div
+            className="fixed inset-0 z-[90] flex items-center justify-center px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !deleting && setPendingDelete(null)} />
+            <Surface
+              variant="chrome"
+              glow
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              className="relative w-full max-w-sm p-7 text-center"
+            >
+              <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-[var(--iris-magenta)]/15 text-[var(--iris-magenta)]">
+                <Trash2 className="size-5" />
+              </div>
+              <h3 className="mt-5 font-display text-xl font-semibold text-white">Delete this link?</h3>
+              <p className="mt-2 text-sm text-[var(--text-mid)]">
+                <span className="font-mono text-[var(--iris-cyan)]">/{pendingDelete.slug}</span> and all of
+                its analytics will be permanently removed.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <MagneticButton variant="outline" size="md" className="flex-1" onClick={() => setPendingDelete(null)} disabled={deleting}>
+                  Cancel
+                </MagneticButton>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="flex-1 rounded-full bg-[var(--iris-magenta)] px-6 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </Surface>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function LinkCard({ link, onDelete }: { link: LinkModel; onDelete: () => void }) {
+  const url = shortUrl(link.slug)
+  return (
+    <Surface variant="glass" className="group flex h-full flex-col p-5">
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          href={url}
+          target="_blank"
+          className="flex min-w-0 items-center gap-1.5 font-mono text-sm text-[var(--iris-cyan)] transition-colors hover:text-white"
         >
-          <GlassCard variant="dark" className="overflow-hidden">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="text-white/60">Loading...</div>
-              </div>
-            ) : filteredLinks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-                  <Plus className="w-8 h-8 text-white/40" />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">No links yet</h3>
-                <p className="text-white/60 mb-6">Create your first short link to get started</p>
-                <GradientButton onClick={() => router.push('/create')}>
-                  <Plus className="w-5 h-5" />
-                  Create Link
-                </GradientButton>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left py-4 px-6 text-white/60 font-medium">Short Link</th>
-                      <th className="text-left py-4 px-6 text-white/60 font-medium">Original URL</th>
-                      <th className="text-left py-4 px-6 text-white/60 font-medium">Clicks</th>
-                      <th className="text-left py-4 px-6 text-white/60 font-medium">Created</th>
-                      <th className="text-right py-4 px-6 text-white/60 font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <AnimatePresence>
-                      {filteredLinks.map((link, index) => (
-                        <motion.tr
-                          key={link.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                        >
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-medium">
-                                {link.shortCode}
-                              </span>
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => handleCopy(`http://localhost:5000/${link.shortCode}`, link.id)}
-                                className="text-white/40 hover:text-white transition-colors"
-                              >
-                                {copiedId === link.id ? (
-                                  <Copy className="w-4 h-4 text-green-400" />
-                                ) : (
-                                  <Copy className="w-4 h-4" />
-                                )}
-                              </motion.button>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="max-w-xs truncate text-white/60">
-                              {link.originalUrl}
-                            </div>
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-semibold">
-                                {link._count?.analytics || 0}
-                              </span>
-                              <GradientButton
-                                variant="outline"
-                                size="sm"
-                                onClick={() => router.push(`/analytics/${link.id}`)}
-                              >
-                                <BarChart2 className="w-4 h-4" />
-                              </GradientButton>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6 text-white/60">
-                            {format(new Date(link.createdAt), 'MMM d, yyyy')}
-                          </td>
-                          <td className="py-4 px-6">
-                            <div className="flex justify-end gap-2">
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => handleDelete(link.id)}
-                                className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </motion.button>
-                            </div>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </GlassCard>
-        </motion.div>
+          <span className="truncate">{shortDisplay(link.slug)}</span>
+          <ExternalLink className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+        </Link>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {link.customSlug && <Badge tone="iris">custom</Badge>}
+          {link.password && (
+            <span className="text-[var(--text-lo)]" title="Password protected">
+              <Lock className="size-3.5" />
+            </span>
+          )}
+        </div>
       </div>
-    </main>
-  );
+
+      <p className="mt-3 line-clamp-2 text-sm text-[var(--text-mid)]" title={link.originalUrl}>
+        {prettyUrl(link.originalUrl, 80)}
+      </p>
+
+      <div className="mt-auto flex items-center justify-between pt-5">
+        <div className="flex items-center gap-4 text-xs text-[var(--text-lo)]">
+          <span className="flex items-center gap-1.5 text-[var(--text-mid)]">
+            <MousePointerClick className="size-3.5" />
+            <span className="font-semibold text-white">{link.clicks ?? 0}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Calendar className="size-3.5" />
+            {format(new Date(link.createdAt), "MMM d, yyyy")}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 border-t border-white/[0.06] pt-4">
+        <CopyButton value={url} className="flex-1 justify-center" />
+        <Link
+          href={`/analytics/${link.id}`}
+          className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
+          aria-label="View analytics"
+        >
+          <BarChart2 className="size-4" />
+        </Link>
+        <button
+          onClick={onDelete}
+          className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-[var(--iris-magenta)]/40 hover:text-[var(--iris-magenta)]"
+          aria-label="Delete link"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+    </Surface>
+  )
+}
+
+function EmptyState({ hasLinks }: { hasLinks: boolean }) {
+  return (
+    <Surface variant="glass" className="flex flex-col items-center justify-center px-6 py-20 text-center">
+      <div className="animate-float flex size-16 items-center justify-center rounded-2xl glass refract">
+        <Link2 className="size-7 text-[var(--iris-azure)]" />
+      </div>
+      <h3 className="mt-6 font-display text-xl font-semibold text-white">
+        {hasLinks ? "No matches" : "No links yet"}
+      </h3>
+      <p className="mt-2 max-w-xs text-sm text-[var(--text-mid)]">
+        {hasLinks ? "Try a different search term." : "Forge your first short link to start tracking clicks."}
+      </p>
+      {!hasLinks && (
+        <MagneticLink href="/create" size="md" className="mt-7">
+          <Plus className="size-4" /> Create link
+        </MagneticLink>
+      )}
+    </Surface>
+  )
 }

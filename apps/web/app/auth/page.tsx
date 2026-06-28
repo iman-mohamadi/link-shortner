@@ -1,189 +1,221 @@
-'use client';
+"use client"
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { Phone, ArrowRight, CheckCircle, Loader2 } from 'lucide-react';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GradientButton } from '@/components/ui/gradient-button';
-import { GradientInput } from '@/components/ui/gradient-input';
-import { authApi } from '@/lib/api';
-import { HeroBackground } from '@/components/three/hero-background';
+import { Suspense, useEffect, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowRight, ArrowLeft, Loader2, ShieldCheck, Smartphone } from "lucide-react"
+import { LiquidBackground } from "@/components/three/liquid-background"
+import { Logo } from "@/components/layout/logo"
+import { Surface } from "@/components/ui/surface"
+import { Field } from "@/components/ui/field"
+import { OtpInput } from "@/components/ui/otp-input"
+import { MagneticButton } from "@/components/ui/magnetic-button"
+import { Eyebrow } from "@/components/ui/kinetic-text"
+import { toast } from "@/components/ui/toaster"
+import { authApi } from "@/lib/api/auth"
+import { ease } from "@/lib/motion"
 
-export default function AuthPage() {
-  const router = useRouter();
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [countdown, setCountdown] = useState(0);
+const PHONE_RE = /^09\d{9}$/
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+function AuthExperience() {
+  const router = useRouter()
+  const params = useSearchParams()
+  const next = params.get("next") || "/dashboard"
 
+  const [step, setStep] = useState<"phone" | "otp">("phone")
+  const [phone, setPhone] = useState("")
+  const [otp, setOtp] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [countdown, setCountdown] = useState(0)
+
+  useEffect(() => {
+    if (countdown <= 0) return
+    const t = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(t)
+  }, [countdown])
+
+  const startTimer = () => setCountdown(60)
+
+  const sendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (!PHONE_RE.test(phone)) return
+    setLoading(true)
+    setError(null)
     try {
-      await authApi.sendOtp({ phone });
-      setStep('otp');
-      setCountdown(60);
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      const res = await authApi.sendOtp({ phone })
+      setStep("otp")
+      startTimer()
+      // The API returns the code in development to ease demoing.
+      if (res?.code) toast.info(`Dev code: ${res.code}`)
+      else toast.success("Code sent")
     } catch (err: any) {
-      setError(err.message || 'Failed to send OTP');
+      setError(err.message || "Failed to send code")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
+  const verify = async (code: string) => {
+    setLoading(true)
+    setError(null)
     try {
-      await authApi.verifyOtp({ phone, code: otp });
-      router.push('/dashboard');
+      await authApi.verifyOtp({ phone, code })
+      toast.success("Welcome to Lumen")
+      router.push(next)
     } catch (err: any) {
-      setError(err.message || 'Invalid OTP');
+      setError(err.message || "Invalid code")
+      setOtp("")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handleResendOtp = async () => {
-    if (countdown > 0) return;
-    setLoading(true);
-    try {
-      await authApi.sendOtp({ phone });
-      setCountdown(60);
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const resend = async () => {
+    if (countdown > 0) return
+    await sendOtp()
+  }
 
   return (
-    <main className="min-h-screen bg-[#0f0f1a] flex items-center justify-center overflow-hidden">
-      <HeroBackground />
-      
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-md px-6"
+    <main className="relative flex min-h-[100svh] flex-col items-center justify-center overflow-hidden px-4 py-10">
+      <LiquidBackground intensity={0.7} />
+
+      <div className="absolute left-4 top-6 sm:left-8">
+        <Logo />
+      </div>
+
+      <Surface
+        variant="chrome"
+        glow
+        initial={{ opacity: 0, y: 30, filter: "blur(12px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.8, ease: ease.out }}
+        className="w-full max-w-md p-8 sm:p-10"
       >
-        <GlassCard variant="gradient" className="p-8">
-          <AnimatePresence mode="wait">
-            {step === 'phone' && (
-              <motion.div
-                key="phone"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="text-center mb-8">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2, type: 'spring' }}
-                    className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center mx-auto mb-4"
-                  >
-                    <Phone className="w-8 h-8 text-white" />
-                  </motion.div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Welcome</h1>
-                  <p className="text-white/60">Enter your phone number to continue</p>
-                </div>
+        <AnimatePresence mode="wait" initial={false}>
+          {step === "phone" ? (
+            <motion.div
+              key="phone"
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={{ duration: 0.35, ease: ease.out }}
+            >
+              <Eyebrow className="mb-6">
+                <Smartphone className="size-3 text-[var(--iris-cyan)]" /> Secure sign-in
+              </Eyebrow>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-white">
+                Enter the light.
+              </h1>
+              <p className="mt-2 text-sm text-[var(--text-mid)]">
+                We&apos;ll text a one-time code to your phone. No passwords, ever.
+              </p>
 
-                <form onSubmit={handleSendOtp} className="space-y-6">
-                  <GradientInput
-                    type="tel"
-                    placeholder="09XXXXXXXXX"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    icon={<Phone className="w-5 h-5" />}
-                    error={error}
-                  />
+              <form onSubmit={sendOtp} className="mt-8 space-y-5">
+                <Field
+                  name="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  label="Phone number"
+                  placeholder="09XXXXXXXXX"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))
+                    setError(null)
+                  }}
+                  icon={<Smartphone className="size-5" />}
+                  error={error ?? undefined}
+                />
+                <MagneticButton
+                  type="submit"
+                  size="lg"
+                  className="w-full"
+                  disabled={loading || !PHONE_RE.test(phone)}
+                >
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <>Send code <ArrowRight className="size-4" /></>}
+                </MagneticButton>
+              </form>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="otp"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 16 }}
+              transition={{ duration: 0.35, ease: ease.out }}
+            >
+              <Eyebrow className="mb-6">
+                <ShieldCheck className="size-3 text-[var(--iris-cyan)]" /> Verify
+              </Eyebrow>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-white">
+                Enter your code.
+              </h1>
+              <p className="mt-2 text-sm text-[var(--text-mid)]">
+                Sent to <span className="text-white">{phone}</span>
+              </p>
 
-                  <GradientButton type="submit" size="lg" className="w-full" isLoading={loading}>
-                    Send OTP
-                    <ArrowRight className="w-5 h-5" />
-                  </GradientButton>
-                </form>
-              </motion.div>
-            )}
+              <div className="mt-8">
+                <OtpInput
+                  value={otp}
+                  onChange={(v) => {
+                    setOtp(v)
+                    setError(null)
+                  }}
+                  onComplete={verify}
+                  disabled={loading}
+                  error={Boolean(error)}
+                />
+                {error && <p className="mt-3 text-center text-xs text-[var(--iris-magenta)]">{error}</p>}
+              </div>
 
-            {step === 'otp' && (
-              <motion.div
-                key="otp"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="text-center mb-8">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2, type: 'spring' }}
-                    className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-4"
-                  >
-                    <CheckCircle className="w-8 h-8 text-white" />
-                  </motion.div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Verify OTP</h1>
-                  <p className="text-white/60">
-                    Enter the 6-digit code sent to {phone}
-                  </p>
-                </div>
+              <div className="mt-8 space-y-3">
+                <MagneticButton
+                  size="lg"
+                  className="w-full"
+                  disabled={loading || otp.length !== 6}
+                  onClick={() => verify(otp)}
+                >
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <>Verify <ArrowRight className="size-4" /></>}
+                </MagneticButton>
 
-                <form onSubmit={handleVerifyOtp} className="space-y-6">
-                  <GradientInput
-                    type="text"
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    maxLength={6}
-                    error={error}
-                    className="text-center text-2xl tracking-widest"
-                  />
-
-                  <GradientButton type="submit" size="lg" className="w-full" isLoading={loading}>
-                    Verify
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
-                  </GradientButton>
-
+                <div className="flex items-center justify-between text-sm">
                   <button
                     type="button"
-                    onClick={handleResendOtp}
-                    disabled={countdown > 0}
-                    className="w-full text-white/60 hover:text-white transition-colors disabled:opacity-50"
+                    onClick={() => {
+                      setStep("phone")
+                      setOtp("")
+                      setError(null)
+                    }}
+                    className="inline-flex items-center gap-1 text-[var(--text-lo)] transition-colors hover:text-white"
                   >
-                    {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
+                    <ArrowLeft className="size-3.5" /> Change number
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => setStep('phone')}
-                    className="w-full text-white/40 hover:text-white transition-colors text-sm"
+                    onClick={resend}
+                    disabled={countdown > 0 || loading}
+                    className="text-[var(--text-mid)] transition-colors hover:text-white disabled:opacity-50"
                   >
-                    Change phone number
+                    {countdown > 0 ? `Resend in ${countdown}s` : "Resend code"}
                   </button>
-                </form>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </GlassCard>
-      </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Surface>
+
+      <p className="relative mt-8 max-w-xs text-center text-xs text-[var(--text-lo)]">
+        By continuing you agree to bend a little light. Protected by one-time codes.
+      </p>
     </main>
-  );
+  )
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthExperience />
+    </Suspense>
+  )
 }

@@ -1,124 +1,107 @@
-'use client';
+"use client"
 
-import { motion } from 'framer-motion';
-import Link from 'next/link';
-import { ArrowRight, Sparkles } from 'lucide-react';
-import { GradientButton } from '../ui/gradient-button';
-import { GradientInput } from '../ui/gradient-input';
-import { useState } from 'react';
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { ArrowRight, Link2, Sparkles } from "lucide-react"
+import { Eyebrow } from "@/components/ui/kinetic-text"
+import { MagneticButton } from "@/components/ui/magnetic-button"
+import { Marquee } from "@/components/ui/bits"
+import { wordUp, ease } from "@/lib/motion"
+
+const HEADLINE = ["Links", "that", "bend", "light."]
 
 export function Hero() {
-  const [url, setUrl] = useState('');
+  const router = useRouter()
+  const [url, setUrl] = useState("")
 
-  const handleShorten = () => {
-    if (url) {
-      window.location.href = '/dashboard';
-    }
-  };
+  const launch = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = url.trim()
+    const target = trimmed ? `/create?url=${encodeURIComponent(trimmed)}` : "/create"
+    router.push(target)
+  }
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-violet-900/20 via-transparent to-transparent" />
-      
-      <div className="relative z-10 container mx-auto px-6 py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="max-w-4xl mx-auto text-center"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 mb-8"
-          >
-            <Sparkles className="w-4 h-4 text-violet-400" />
-            <span className="text-sm text-white/80">The future of link management</span>
-          </motion.div>
+    <section className="relative flex min-h-[100svh] flex-col items-center justify-center px-4 pt-28 text-center">
+      <Eyebrow className="mb-7">
+        <Sparkles className="size-3 text-[var(--iris-cyan)]" /> The premium link engine
+      </Eyebrow>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-            className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-6 leading-tight"
-          >
-            Shorten Links.
-            <br />
-            <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              Amplify Impact.
+      <h1 className="font-display text-[clamp(3rem,11vw,9rem)] font-semibold leading-[0.92] tracking-[-0.04em]">
+        <span className="sr-only">Links that bend light.</span>
+        <span aria-hidden className="flex flex-wrap justify-center gap-x-[0.25em]">
+          {HEADLINE.map((word, i) => (
+            <span key={i} className="overflow-hidden pb-[0.08em]">
+              <motion.span
+                initial="hidden"
+                animate="show"
+                variants={wordUp}
+                transition={{ delay: 0.15 + i * 0.09, duration: 0.9, ease: ease.liquid }}
+                className={i >= 2 ? "inline-block text-iris" : "inline-block text-chrome"}
+              >
+                {word}
+              </motion.span>
             </span>
-          </motion.h1>
+          ))}
+        </span>
+      </h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.8 }}
-            className="text-xl md:text-2xl text-white/60 mb-12 max-w-2xl mx-auto"
-          >
-            Transform long URLs into powerful, trackable links with cinema-grade analytics and beautiful QR codes.
-          </motion.p>
+      <motion.p
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.8, ease: ease.out }}
+        className="mt-7 max-w-xl text-balance text-base text-[var(--text-mid)] sm:text-lg"
+      >
+        Forge short links with custom slugs, passwords and expiry — then watch
+        every click travel the world in real time.
+      </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, duration: 0.8 }}
-            className="max-w-2xl mx-auto"
-          >
-            <div className="flex flex-col sm:flex-row gap-4">
-              <GradientInput
-                placeholder="Paste your long URL here..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="flex-1"
-              />
-              <GradientButton onClick={handleShorten} size="lg">
-                Shorten Now
-                <ArrowRight className="w-5 h-5" />
-              </GradientButton>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1, duration: 0.8 }}
-            className="mt-16 flex flex-wrap justify-center gap-8"
-          >
-            <div className="text-center">
-              <div className="text-4xl font-bold text-white mb-2">10M+</div>
-              <div className="text-white/60">Links Created</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-white mb-2">99.9%</div>
-              <div className="text-white/60">Uptime</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-white mb-2">50+</div>
-              <div className="text-white/60">Countries</div>
-            </div>
-          </motion.div>
-        </motion.div>
-      </div>
+      <motion.form
+        onSubmit={launch}
+        initial={{ opacity: 0, y: 24, filter: "blur(10px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ delay: 0.75, duration: 0.9, ease: ease.out }}
+        className="glass-strong refract glow-soft mt-10 flex w-full max-w-xl items-center gap-2 rounded-full p-2 pl-5"
+      >
+        <Link2 className="size-5 shrink-0 text-[var(--text-lo)]" />
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Paste a long, unwieldy URL…"
+          className="h-11 w-full bg-transparent text-[15px] text-white placeholder:text-[var(--text-lo)] focus:outline-none"
+        />
+        <MagneticButton type="submit" size="md" className="shrink-0">
+          Shorten <ArrowRight className="size-4" />
+        </MagneticButton>
+      </motion.form>
 
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.2, duration: 1 }}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2"
+        transition={{ delay: 1.1, duration: 1 }}
+        className="mt-16 w-full max-w-3xl"
       >
-        <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-6 h-10 rounded-full border-2 border-white/30 flex justify-center pt-2"
-        >
-          <motion.div
-            animate={{ y: [0, 12, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-1.5 h-1.5 rounded-full bg-white/60"
+        <Marquee
+          items={["Custom slugs", "Password locks", "Expiring links", "Live geo analytics", "Instant QR", "Device insights"]}
+        />
+      </motion.div>
+
+      <motion.div
+        aria-hidden
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.4, duration: 1 }}
+        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+      >
+        <div className="flex h-10 w-6 items-start justify-center rounded-full border border-white/15 p-1.5">
+          <motion.span
+            animate={{ y: [0, 8, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            className="size-1.5 rounded-full bg-iris"
           />
-        </motion.div>
+        </div>
       </motion.div>
     </section>
-  );
+  )
 }

@@ -1,235 +1,284 @@
-'use client';
+"use client"
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Globe, Smartphone, Monitor, Tablet } from 'lucide-react';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GradientButton } from '@/components/ui/gradient-button';
-import { linksApi, LinkStats } from '@/lib/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { use, useEffect, useState } from "react"
+import Link from "next/link"
+import { motion } from "framer-motion"
+import {
+  ArrowLeft,
+  Globe2,
+  Loader2,
+  Monitor,
+  MousePointerClick,
+  Smartphone,
+  Tablet,
+  Compass,
+} from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts"
+import { AppNav } from "@/components/layout/app-nav"
+import { Surface } from "@/components/ui/surface"
+import { Badge, CountUp, Skeleton } from "@/components/ui/bits"
+import { Eyebrow } from "@/components/ui/kinetic-text"
+import { toast } from "@/components/ui/toaster"
+import { useRequireAuth } from "@/lib/hooks/use-auth"
+import { linksApi } from "@/lib/api/links"
+import type { LinkStats } from "@/lib/api/types"
+import { shortDisplay } from "@/lib/format"
+import { reveal, viewport } from "@/lib/motion"
 
-const COLORS = ['#8b5cf6', '#6366f1', '#a855f7', '#d946ef'];
+const IRIS = ["#6ef2e0", "#5b8cff", "#9b6bff", "#ff6bd6", "#ffb86b"]
 
-const deviceIcons: Record<string, React.ReactNode> = {
-  mobile: <Smartphone className="w-5 h-5" />,
-  desktop: <Monitor className="w-5 h-5" />,
-  tablet: <Tablet className="w-5 h-5" />,
-};
+const deviceIcon = (device?: string) => {
+  const d = (device || "").toLowerCase()
+  if (d.includes("mobile")) return <Smartphone className="size-4" />
+  if (d.includes("tablet")) return <Tablet className="size-4" />
+  if (d.includes("desktop")) return <Monitor className="size-4" />
+  return <Globe2 className="size-4" />
+}
 
-export default function AnalyticsPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const [stats, setStats] = useState<LinkStats | null>(null);
-  const [loading, setLoading] = useState(true);
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="glass-strong rounded-xl px-3 py-2 text-xs text-white">
+      <span className="text-[var(--text-mid)]">{label ?? payload[0].name}</span>{" "}
+      <span className="font-semibold">{payload[0].value}</span>
+    </div>
+  )
+}
+
+export default function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const { ready } = useRequireAuth()
+  const [stats, setStats] = useState<LinkStats | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchStats();
-  }, [params.id]);
-
-  const fetchStats = async () => {
-    try {
-      const data = await linksApi.getLinkStats(params.id);
-      setStats(data);
-    } catch (error) {
-      console.error('Failed to fetch stats:', error);
-    } finally {
-      setLoading(false);
+    if (!ready) return
+    let active = true
+    setLoading(true)
+    linksApi
+      .getLinkStats(id)
+      .then((data) => active && setStats(data))
+      .catch((err) => active && toast.error(err.message || "Failed to load analytics"))
+      .finally(() => active && setLoading(false))
+    return () => {
+      active = false
     }
-  };
+  }, [ready, id])
 
-  const countryData = stats?.countries.map(c => ({
-    name: c.country,
-    value: c.count,
-  })) || [];
+  if (!ready) return null
 
-  const deviceData = stats?.devices.map(d => ({
-    name: d.device,
-    value: d.count,
-  })) || [];
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[#0f0f1a] flex items-center justify-center">
-        <div className="text-white/60">Loading analytics...</div>
-      </main>
-    );
-  }
-
-  if (!stats) {
-    return (
-      <main className="min-h-screen bg-[#0f0f1a] flex items-center justify-center">
-        <div className="text-white/60">Failed to load analytics</div>
-      </main>
-    );
-  }
+  const countryData = (stats?.countries ?? []).map((c) => ({ name: c.country || "??", value: c.count }))
+  const deviceData = (stats?.devices ?? []).map((d) => ({ name: d.device || "Unknown", value: d.count }))
+  const browsers = stats?.browsers ?? []
+  const maxBrowser = Math.max(1, ...browsers.map((b) => b.count))
 
   return (
-    <main className="min-h-screen bg-[#0f0f1a]">
-      <div className="container mx-auto px-6 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 mb-8"
-        >
-          <GradientButton
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/dashboard')}
+    <>
+      <AppNav />
+      <main className="relative mx-auto max-w-6xl px-4 pb-24 pt-12">
+        <motion.div variants={reveal} initial="hidden" animate="show" className="mb-10">
+          <Link
+            href="/dashboard"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm text-[var(--text-mid)] transition-colors hover:text-white"
           >
-            <ArrowLeft className="w-5 h-5" />
-          </GradientButton>
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Analytics</h1>
-            <p className="text-white/60">Detailed performance metrics</p>
+            <ArrowLeft className="size-4" /> Back to links
+          </Link>
+          <Eyebrow className="mb-4">Performance</Eyebrow>
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-chrome sm:text-5xl">
+            {stats ? <>/{shortDisplay(stats.slug).split("/").pop()}</> : "Analytics"}
+          </h1>
+        </motion.div>
+
+        {loading ? (
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Skeleton className="h-44 lg:col-span-1" />
+            <Skeleton className="h-44 lg:col-span-2" />
+            <Skeleton className="h-72 lg:col-span-2" />
+            <Skeleton className="h-72" />
           </div>
-        </motion.div>
+        ) : !stats ? (
+          <Surface variant="glass" className="p-16 text-center text-[var(--text-mid)]">
+            <Loader2 className="mx-auto mb-3 size-6 animate-spin opacity-40" />
+            Couldn&apos;t load analytics for this link.
+          </Surface>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Hero stat */}
+            <Surface variant="iris" className="relative flex flex-col justify-between overflow-hidden p-7 lg:col-span-1">
+              <div className="pointer-events-none absolute -right-12 -top-12 size-48 rounded-full bg-iris opacity-25 blur-3xl" />
+              <div className="flex items-center gap-2 text-[var(--text-mid)]">
+                <MousePointerClick className="size-4" />
+                <span className="text-xs uppercase tracking-[0.18em]">Total clicks</span>
+              </div>
+              <div className="font-display text-6xl font-semibold text-white sm:text-7xl">
+                <CountUp to={stats.totalClicks} />
+              </div>
+            </Surface>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid md:grid-cols-3 gap-6 mb-8"
-        >
-          <GlassCard variant="gradient">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-white">{stats.totalClicks}</div>
-                <div className="text-white/60">Total Clicks</div>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard variant="gradient">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-white">{stats.countries.length}</div>
-                <div className="text-white/60">Countries</div>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard variant="gradient">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                <Smartphone className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-white">{stats.devices.length}</div>
-                <div className="text-white/60">Device Types</div>
-              </div>
-            </div>
-          </GlassCard>
-        </motion.div>
-
-        <div className="grid lg:grid-cols-2 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <GlassCard variant="dark">
-              <h3 className="text-xl font-bold text-white mb-6">Clicks by Country</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={countryData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.6)" />
-                    <YAxis stroke="rgba(255,255,255,0.6)" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(15, 15, 26, 0.9)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px',
-                        color: 'white',
-                      }}
-                    />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </GlassCard>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <GlassCard variant="dark">
-              <h3 className="text-xl font-bold text-white mb-6">Device Distribution</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={deviceData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {deviceData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(15, 15, 26, 0.9)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px',
-                        color: 'white',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </GlassCard>
-          </motion.div>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <GlassCard variant="dark">
-            <h3 className="text-xl font-bold text-white mb-6">Recent Activity</h3>
-            <div className="space-y-4">
-              {stats.recentActivity.length === 0 ? (
-                <div className="text-center py-8 text-white/60">No recent activity</div>
-              ) : (
-                stats.recentActivity.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-center justify-between py-3 border-b border-white/5 last:border-0"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center">
-                        {deviceIcons[activity.device] || <Globe className="w-5 h-5 text-white/60" />}
-                      </div>
-                      <div>
-                        <div className="text-white font-medium capitalize">{activity.device}</div>
-                        <div className="text-white/60 text-sm">{activity.country}</div>
-                      </div>
-                    </div>
-                    <div className="text-white/60 text-sm">
-                      {new Date(activity.createdAt).toLocaleString()}
-                    </div>
+            {/* Quick tiles */}
+            <div className="grid grid-cols-3 gap-4 lg:col-span-2">
+              {[
+                { label: "Countries", value: stats.countries.length, icon: <Globe2 className="size-4" /> },
+                { label: "Devices", value: stats.devices.length, icon: <Smartphone className="size-4" /> },
+                { label: "Browsers", value: stats.browsers.length, icon: <Compass className="size-4" /> },
+              ].map((t) => (
+                <Surface key={t.label} variant="glass" className="flex flex-col justify-between p-5">
+                  <div className="flex items-center gap-2 text-[var(--text-lo)]">
+                    {t.icon}
+                    <span className="text-[11px] uppercase tracking-[0.16em]">{t.label}</span>
                   </div>
-                ))
-              )}
+                  <div className="font-display text-3xl font-semibold text-white">
+                    <CountUp to={t.value} />
+                  </div>
+                </Surface>
+              ))}
             </div>
-          </GlassCard>
-        </motion.div>
-      </div>
-    </main>
-  );
+
+            {/* Countries bar chart */}
+            <Surface variant="glass" className="p-6 lg:col-span-2">
+              <h3 className="mb-6 font-display text-lg font-semibold text-white">Clicks by country</h3>
+              {countryData.length ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={countryData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="barIris" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#5b8cff" />
+                          <stop offset="100%" stopColor="#9b6bff" />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="name" stroke="rgba(196,205,224,0.5)" tickLine={false} axisLine={false} fontSize={12} />
+                      <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<ChartTooltip />} />
+                      <Bar dataKey="value" fill="url(#barIris)" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <EmptyChart />
+              )}
+            </Surface>
+
+            {/* Devices donut */}
+            <Surface variant="glass" className="p-6">
+              <h3 className="mb-6 font-display text-lg font-semibold text-white">Devices</h3>
+              {deviceData.length ? (
+                <>
+                  <div className="h-44">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={deviceData} cx="50%" cy="50%" innerRadius={48} outerRadius={70} paddingAngle={3} dataKey="value" stroke="none">
+                          {deviceData.map((_, i) => (
+                            <Cell key={i} fill={IRIS[i % IRIS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<ChartTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {deviceData.map((d, i) => (
+                      <div key={d.name} className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2 text-[var(--text-mid)]">
+                          <span className="size-2.5 rounded-full" style={{ background: IRIS[i % IRIS.length] }} />
+                          {d.name}
+                        </span>
+                        <span className="text-white">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyChart />
+              )}
+            </Surface>
+
+            {/* Browsers */}
+            <Surface variant="glass" className="p-6">
+              <h3 className="mb-6 font-display text-lg font-semibold text-white">Browsers</h3>
+              {browsers.length ? (
+                <div className="space-y-4">
+                  {browsers.map((b) => (
+                    <div key={b.browser}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="text-[var(--text-mid)]">{b.browser || "Unknown"}</span>
+                        <span className="text-white">{b.count}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/[0.05]">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          whileInView={{ width: `${(b.count / maxBrowser) * 100}%` }}
+                          viewport={viewport}
+                          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                          className="h-full rounded-full bg-iris"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyChart />
+              )}
+            </Surface>
+
+            {/* Recent activity */}
+            <Surface variant="glass" className="p-6 lg:col-span-2">
+              <h3 className="mb-6 font-display text-lg font-semibold text-white">Recent activity</h3>
+              {stats.recentActivity.length ? (
+                <div className="space-y-1">
+                  {stats.recentActivity.map((a, i) => (
+                    <motion.div
+                      key={a.id}
+                      variants={reveal}
+                      initial="hidden"
+                      whileInView="show"
+                      viewport={viewport}
+                      transition={{ delay: i * 0.03 }}
+                      className="flex items-center justify-between rounded-xl px-3 py-3 transition-colors hover:bg-white/[0.03]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex size-9 items-center justify-center rounded-xl bg-white/[0.05] text-[var(--iris-azure)]">
+                          {deviceIcon(a.device)}
+                        </span>
+                        <div>
+                          <div className="text-sm capitalize text-white">{a.device || "Unknown"}</div>
+                          <div className="flex items-center gap-2 text-xs text-[var(--text-lo)]">
+                            <span>{a.browser || "—"}</span>
+                            {a.country && <Badge>{a.country}</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-[var(--text-lo)]">
+                        {a.timestamp || a.createdAt
+                          ? new Date((a.timestamp || a.createdAt) as string).toLocaleString()
+                          : ""}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyChart label="No clicks recorded yet — share your link to see activity." />
+              )}
+            </Surface>
+          </div>
+        )}
+      </main>
+    </>
+  )
+}
+
+function EmptyChart({ label = "No data yet." }: { label?: string }) {
+  return (
+    <div className="flex h-44 items-center justify-center text-center text-sm text-[var(--text-lo)]">
+      {label}
+    </div>
+  )
 }

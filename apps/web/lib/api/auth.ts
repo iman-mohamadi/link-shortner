@@ -6,7 +6,7 @@ export const authApi = {
   sendOtp: async (data: SendOtpInput): Promise<SendOtpResponse> => {
     try {
       const response = await apiClient.post<SendOtpResponse>('/api/auth/send-otp', data);
-      return response.data || response;
+      return (response.data || response) as SendOtpResponse;
     } catch (error) {
       if (error instanceof ApiError) {
         throw new Error(error.message);
@@ -18,7 +18,7 @@ export const authApi = {
   verifyOtp: async (data: VerifyOtpInput): Promise<VerifyOtpResponse> => {
     try {
       const response = await apiClient.post<VerifyOtpResponse>('/api/auth/verify-otp', data);
-      const authData = response.data || response;
+      const authData = (response.data || response) as VerifyOtpResponse;
 
       if (authData.token) {
         apiClient.setToken(authData.token);

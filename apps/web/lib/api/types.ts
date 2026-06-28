@@ -3,19 +3,24 @@ export interface User {
   phone: string;
   isPro: boolean;
   createdAt: string;
+  _count?: {
+    links: number;
+  };
 }
 
 export interface Link {
   id: string;
   originalUrl: string;
-  shortCode: string;
+  shortCode?: string;
   slug: string;
   userId: string;
   expiresAt: string | null;
   password: string | null;
   clicks: number;
+  customSlug: boolean;
+  isActive: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
   _count?: {
     analytics: number;
   };
@@ -24,23 +29,32 @@ export interface Link {
 export interface Analytics {
   id: string;
   linkId: string;
-  country: string;
-  device: string;
-  referrer: string | null;
-  createdAt: string;
+  country?: string;
+  device?: string;
+  browser?: string;
+  referrer?: string | null;
+  timestamp?: string;
+  createdAt?: string;
 }
 
 export interface LinkStats {
   totalClicks: number;
+  linkId: string;
+  slug: string;
   countries: Array<{
     country: string;
-    _count: { country: number };
+    count: number;
   }>;
   devices: Array<{
     device: string;
-    _count: { device: number };
+    count: number;
+  }>;
+  browsers: Array<{
+    browser: string;
+    count: number;
   }>;
   recentActivity: Analytics[];
+  createdAt: string;
 }
 
 export interface CreateLinkInput {
@@ -65,6 +79,7 @@ export interface SendOtpInput {
 export interface SendOtpResponse {
   message: string;
   phone: string;
+  code?: string;
 }
 
 export interface VerifyOtpInput {
@@ -75,10 +90,7 @@ export interface VerifyOtpInput {
 export interface VerifyOtpResponse {
   message: string;
   token: string;
-  user: {
-    phone: string;
-    isPro: boolean;
-  };
+  user: User;
 }
 
 export interface UpdateLinkInput {
@@ -87,3 +99,14 @@ export interface UpdateLinkInput {
   password?: string;
   expiresAt?: string;
 }
+
+export interface LinkStatsResponse {
+  message: string;
+  data: LinkStats;
+}
+
+export interface UserLinksResponse {
+  message: string;
+  data: Link[];
+}
+

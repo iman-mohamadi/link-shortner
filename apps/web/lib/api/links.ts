@@ -13,7 +13,7 @@ export const linksApi = {
   createLink: async (data: CreateLinkInput): Promise<CreateLinkResponse> => {
     try {
       const response = await apiClient.post<CreateLinkResponse>('/api/links/create', data);
-      return response.data || response;
+      return (response.data || response) as CreateLinkResponse;
     } catch (error) {
       if (error instanceof ApiError) {
         throw new Error(error.message);
@@ -39,7 +39,7 @@ export const linksApi = {
       const response = await apiClient.patch<Link>(`/api/user/links/${id}`, data);
       return {
         message: response.message || 'Link updated',
-        data: response.data || {}
+        data: (response.data || {}) as Link
       };
     } catch (error) {
       if (error instanceof ApiError) {
@@ -64,7 +64,7 @@ export const linksApi = {
   getLinkStats: async (id: string): Promise<LinkStats> => {
     try {
       const response = await apiClient.get<LinkStats>(`/api/user/links/${id}/stats`);
-      return response.data || {};
+      return (response.data || {}) as LinkStats;
     } catch (error) {
       if (error instanceof ApiError) {
         throw new Error(error.message);

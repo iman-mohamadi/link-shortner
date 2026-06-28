@@ -1,18 +1,22 @@
-import { Geist, Geist_Mono, Figtree, Roboto_Slab } from "next/font/google"
+import type { Metadata } from "next"
+import { Geist_Mono, Figtree, Space_Grotesk } from "next/font/google"
 
 import "@workspace/ui/globals.css"
+import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SmoothScroll } from "@/components/providers/smooth-scroll"
-import { cn } from "@workspace/ui/lib/utils";
+import { Toaster } from "@/components/ui/toaster"
+import { cn } from "@workspace/ui/lib/utils"
 
-const robotoSlabHeading = Roboto_Slab({subsets:['latin'],variable:'--font-heading'});
+const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-heading" })
+const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" })
+const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
-const figtree = Figtree({subsets:['latin'],variable:'--font-sans'})
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-})
+export const metadata: Metadata = {
+  title: "Lumen — links that bend light",
+  description:
+    "A premium link shortener. Forge short links, protect them, and watch them travel the world in real time.",
+}
 
 export default function RootLayout({
   children,
@@ -23,12 +27,18 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", figtree.variable, robotoSlabHeading.variable)}
+      className={cn(
+        "dark antialiased grain",
+        fontMono.variable,
+        figtree.variable,
+        display.variable
+      )}
     >
-      <body>
+      <body className="font-sans">
         <ThemeProvider>
           <SmoothScroll />
           {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
