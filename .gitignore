@@ -43,3 +43,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+apps/web/.claude/agents/code-readability-reviewer.md
+claude-prompt.txt
