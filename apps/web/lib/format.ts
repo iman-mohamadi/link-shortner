@@ -8,7 +8,7 @@ export function shortUrl(slug: string): string {
   return `${SHORT_ORIGIN}/${slug}`
 }
 
-/** Display form without the protocol, e.g. "lumen.io/abc123". */
+/** Display form without the protocol, e.g. "rizo.link/abc123". */
 export function shortDisplay(slug: string): string {
   return shortUrl(slug).replace(/^https?:\/\//, "")
 }

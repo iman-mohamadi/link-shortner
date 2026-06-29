@@ -4,6 +4,7 @@ import { UpdateLinkInput } from '../schemas/user.schema';
 import { hash } from 'bcrypt';
 import { getCurrentUser } from '../utils/auth';
 import { getBufferedClicks } from '../utils/click-buffer';
+import { generateQRCode } from '../utils/qrcode';
 
 const SLUG_REGEX = /^[a-z0-9-]+$/;
 
@@ -118,7 +119,26 @@ export const deleteLinkHandler = async (request: FastifyRequest<{ Params: { id: 
   }
 };
 
-// 4. Get Link Stats (Pro Dashboard)
+// 4. Get QR code for a link
+export const getLinkQRHandler = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  try {
+    const { id } = request.params;
+    const jwtUser = request.user as { id: string };
+
+    const link = await prisma.link.findUnique({ where: { id }, select: { id: true, slug: true, userId: true } });
+    if (!link || link.userId !== jwtUser.id) {
+      return reply.status(404).send({ error: 'Link not found' });
+    }
+
+    const qrCode = await generateQRCode(link.slug);
+    return reply.status(200).send({ qrCode });
+  } catch (error: any) {
+    request.log.error(error);
+    return reply.status(500).send({ error: 'Failed to generate QR code' });
+  }
+};
+
+// 5. Get Link Stats (Pro Dashboard)
 export const getLinkStatsHandler = async (
   request: FastifyRequest<{ Params: { id: string } }>,
   reply: FastifyReply
@@ -134,11 +154,15 @@ export const getLinkStatsHandler = async (
 
     // Aggregate in the DB and fetch only the latest activity — never load every
     // analytics row into memory.
-    const [countries, devices, browsers, recentActivity, buffered] = await Promise.all([
-      prisma.analytics.groupBy({ by: ['country'], where: { linkId: id }, _count: { country: true } }),
-      prisma.analytics.groupBy({ by: ['device'], where: { linkId: id }, _count: { device: true } }),
-      prisma.analytics.groupBy({ by: ['browser'], where: { linkId: id }, _count: { browser: true } }),
-      prisma.analytics.findMany({ where: { linkId: id }, orderBy: { timestamp: 'desc' }, take: 10 }),
+    const [countries, cities, devices, browsers, referrers, recentActivity, buffered] = await Promise.all([
+      prisma.analytics.groupBy({ by: ['country'],  where: { linkId: id }, _count: { country: true },  orderBy: { _count: { country: 'desc' } } }),
+      prisma.analytics.groupBy({ by: ['city'],     where: { linkId: id, city: { not: null } }, _count: { city: true }, orderBy: { _count: { city: 'desc' } }, take: 10 }),
+      prisma.analytics.groupBy({ by: ['device'],   where: { linkId: id }, _count: { device: true } }),
+      prisma.analytics.groupBy({ by: ['browser'],  where: { linkId: id }, _count: { browser: true } }),
+      prisma.analytics.groupBy({ by: ['referrer'], where: { linkId: id }, _count: { referrer: true }, orderBy: { _count: { referrer: 'desc' } }, take: 10 }),
+      prisma.analytics.findMany({ where: { linkId: id }, orderBy: { timestamp: 'desc' }, take: 20,
+        select: { id: true, country: true, city: true, region: true, device: true, browser: true, referrer: true, ip: true, timestamp: true },
+      }),
       getBufferedClicks(id),
     ]);
 
@@ -148,9 +172,11 @@ export const getLinkStatsHandler = async (
         totalClicks: link.clicks + buffered,
         linkId: link.id,
         slug: link.slug,
-        countries: countries.map((c) => ({ country: c.country || 'Unknown', count: c._count.country })),
-        devices: devices.map((d) => ({ device: d.device || 'Unknown', count: d._count.device })),
-        browsers: browsers.map((b) => ({ browser: b.browser || 'Unknown', count: b._count.browser })),
+        countries:      countries.map((c) => ({ country:  c.country  || 'Unknown', count: c._count.country })),
+        cities:         cities.map((c)    => ({ city:     c.city     || 'Unknown', count: c._count.city })),
+        devices:        devices.map((d)   => ({ device:   d.device   || 'Unknown', count: d._count.device })),
+        browsers:       browsers.map((b)  => ({ browser:  b.browser  || 'Unknown', count: b._count.browser })),
+        referrers:      referrers.map((r) => ({ referrer: r.referrer || 'Direct',  count: r._count.referrer })),
         recentActivity,
         createdAt: link.createdAt,
       },

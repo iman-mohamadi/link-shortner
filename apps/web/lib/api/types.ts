@@ -32,9 +32,12 @@ export interface Analytics {
   id: string;
   linkId: string;
   country?: string;
+  city?: string | null;
+  region?: string | null;
   device?: string;
   browser?: string;
   referrer?: string | null;
+  ip?: string | null;
   timestamp?: string;
   createdAt?: string;
 }
@@ -43,18 +46,11 @@ export interface LinkStats {
   totalClicks: number;
   linkId: string;
   slug: string;
-  countries: Array<{
-    country: string;
-    count: number;
-  }>;
-  devices: Array<{
-    device: string;
-    count: number;
-  }>;
-  browsers: Array<{
-    browser: string;
-    count: number;
-  }>;
+  countries:  Array<{ country:  string; count: number }>;
+  cities:     Array<{ city:     string; count: number }>;
+  devices:    Array<{ device:   string; count: number }>;
+  browsers:   Array<{ browser:  string; count: number }>;
+  referrers:  Array<{ referrer: string; count: number }>;
   recentActivity: Analytics[];
   createdAt: string;
 }

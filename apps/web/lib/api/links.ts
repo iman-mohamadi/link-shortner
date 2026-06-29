@@ -12,8 +12,10 @@ import type {
 export const linksApi = {
   createLink: async (data: CreateLinkInput): Promise<CreateLinkResponse> => {
     try {
+      // The backend returns { message, shortUrl, qrCode, data: Link } at the top
+      // level — NOT nested under a `data` key — so we cast the whole response.
       const response = await apiClient.post<CreateLinkResponse>('/api/links/create', data);
-      return (response.data || response) as CreateLinkResponse;
+      return response as unknown as CreateLinkResponse;
     } catch (error) {
       if (error instanceof ApiError) {
         throw new Error(error.message);
@@ -57,6 +59,17 @@ export const linksApi = {
       if (error instanceof ApiError) {
         throw new Error(error.message);
       }
+      throw error;
+    }
+  },
+
+  getLinkQR: async (id: string): Promise<string> => {
+    try {
+      const response = await apiClient.get<{ qrCode: string }>(`/api/user/links/${id}/qr`);
+      const data = response as unknown as { qrCode: string };
+      return data.qrCode;
+    } catch (error) {
+      if (error instanceof ApiError) throw new Error(error.message);
       throw error;
     }
   },

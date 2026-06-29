@@ -56,7 +56,7 @@ export function Stats() {
               className="text-balance text-3xl font-semibold tracking-tight text-chrome sm:text-5xl"
             />
             <p className="mt-4 max-w-md text-[var(--text-mid)]">
-              These numbers stream straight from the Lumen API — no vanity
+              These numbers stream straight from the RizO API — no vanity
               metrics, just the live state of the platform.
             </p>
           </div>

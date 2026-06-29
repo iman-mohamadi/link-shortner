@@ -54,9 +54,15 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
+    const method = (options.method ?? 'GET').toUpperCase();
+
+    // Don't send Content-Type on body-less methods.
+    // Fastify's JSON body-parser sees the header and returns 400 when the body
+    // is empty (which it always is for GET/DELETE/HEAD).
+    const hasBody = method !== 'GET' && method !== 'DELETE' && method !== 'HEAD';
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers as Record<string, string>),
     };
 

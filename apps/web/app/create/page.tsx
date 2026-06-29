@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Calendar,
   Check,
+  Download,
   Link2,
   Loader2,
   Lock,
@@ -247,10 +248,19 @@ function CreateExperience() {
                   key="qr"
                   initial={{ opacity: 0, scale: 0.85, filter: "blur(8px)" }}
                   animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                  className="relative rounded-3xl bg-white p-4 glow-soft"
+                  className="flex flex-col items-center gap-4"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrSrc(created.qrCode)!} alt="QR code" className="size-48 rounded-xl" />
+                  <div className="relative rounded-3xl bg-white p-4 glow-soft">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={qrSrc(created.qrCode)!} alt="QR code" className="size-48 rounded-xl" />
+                  </div>
+                  <a
+                    href={qrSrc(created.qrCode)!}
+                    download={`lumen-${created.data?.slug ?? "qr"}.png`}
+                    className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
+                  >
+                    <Download className="size-3.5" /> Download QR
+                  </a>
                 </motion.div>
               ) : (
                 <motion.div
@@ -264,7 +274,7 @@ function CreateExperience() {
                   </div>
                   <div className="mt-7 w-full rounded-2xl glass px-4 py-3 text-center">
                     <span className="font-mono text-sm text-[var(--text-mid)]">
-                      {valid ? shortDisplay(alias.trim() || "••••••") : "lumen.link/••••••"}
+                      {valid ? shortDisplay(alias.trim() || "••••••") : "rizo.link/••••••"}
                     </span>
                   </div>
                   <p className="mt-3 max-w-[16rem] text-center text-xs text-[var(--text-lo)]">

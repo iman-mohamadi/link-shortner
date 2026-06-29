@@ -7,14 +7,17 @@ import { format } from "date-fns"
 import {
   BarChart2,
   Calendar,
+  Download,
   ExternalLink,
   Link2,
   Lock,
   MousePointerClick,
   Pencil,
   Plus,
+  QrCode,
   Search,
   Trash2,
+  X,
 } from "lucide-react"
 import { AppNav } from "@/components/layout/app-nav"
 import { Surface } from "@/components/ui/surface"
@@ -27,7 +30,7 @@ import { EditLinkModal } from "@/components/dashboard/edit-link-modal"
 import { useRequireAuth } from "@/lib/hooks/use-auth"
 import { linksApi } from "@/lib/api/links"
 import type { Link as LinkModel } from "@/lib/api/types"
-import { prettyUrl, shortDisplay, shortUrl } from "@/lib/format"
+import { prettyUrl, qrSrc, shortDisplay, shortUrl } from "@/lib/format"
 import { reveal, viewport } from "@/lib/motion"
 
 export default function DashboardPage() {
@@ -39,6 +42,7 @@ export default function DashboardPage() {
   const [pendingDelete, setPendingDelete] = useState<LinkModel | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState<LinkModel | null>(null)
+  const [qrTarget, setQrTarget] = useState<LinkModel | null>(null)
 
   useEffect(() => {
     if (!ready) return
@@ -173,6 +177,7 @@ export default function DashboardPage() {
                       onDelete={() => setPendingDelete(link)}
                       onEdit={() => setEditing(link)}
                       onToggleActive={() => toggleActive(link)}
+                      onShowQR={() => setQrTarget(link)}
                     />
                   </motion.div>
                 ))}
@@ -191,6 +196,13 @@ export default function DashboardPage() {
             onClose={() => setEditing(null)}
             onSaved={onSaved}
           />
+        )}
+      </AnimatePresence>
+
+      {/* QR modal */}
+      <AnimatePresence>
+        {qrTarget && (
+          <QRModal link={qrTarget} onClose={() => setQrTarget(null)} />
         )}
       </AnimatePresence>
 
@@ -225,9 +237,10 @@ export default function DashboardPage() {
                   Cancel
                 </MagneticButton>
                 <button
+                  type="button"
                   onClick={confirmDelete}
                   disabled={deleting}
-                  className="flex-1 rounded-full bg-[var(--iris-magenta)] px-6 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 rounded-full bg-[var(--iris-magenta)] px-6 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {deleting ? "Deleting…" : "Delete"}
                 </button>
@@ -245,11 +258,13 @@ function LinkCard({
   onDelete,
   onEdit,
   onToggleActive,
+  onShowQR,
 }: {
   link: LinkModel
   onDelete: () => void
   onEdit: () => void
   onToggleActive: () => void
+  onShowQR: () => void
 }) {
   const url = shortUrl(link.slug)
   return (
@@ -306,6 +321,15 @@ function LinkCard({
 
       <div className="mt-4 flex items-center gap-2 border-t border-white/[0.06] pt-4">
         <CopyButton value={url} className="flex-1 justify-center" />
+        <button
+          type="button"
+          onClick={onShowQR}
+          className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
+          aria-label="Show QR code"
+          title="QR code"
+        >
+          <QrCode className="size-4" />
+        </button>
         <Link
           href={`/analytics/${link.id}`}
           className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
@@ -314,6 +338,7 @@ function LinkCard({
           <BarChart2 className="size-4" />
         </Link>
         <button
+          type="button"
           onClick={onEdit}
           className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
           aria-label="Edit link"
@@ -321,6 +346,7 @@ function LinkCard({
           <Pencil className="size-4" />
         </button>
         <button
+          type="button"
           onClick={onDelete}
           className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-[var(--iris-magenta)]/40 hover:text-[var(--iris-magenta)]"
           aria-label="Delete link"
@@ -329,6 +355,83 @@ function LinkCard({
         </button>
       </div>
     </Surface>
+  )
+}
+
+/* ─── QR Modal — lazy-fetches the QR on open ─────────────────────────────── */
+function QRModal({ link, onClose }: { link: LinkModel; onClose: () => void }) {
+  const [qr, setQr] = useState<string | null>(null)
+  const [loadingQr, setLoadingQr] = useState(true)
+  const [errorQr, setErrorQr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    setLoadingQr(true)
+    setErrorQr(null)
+    linksApi
+      .getLinkQR(link.id)
+      .then((data) => { if (active) setQr(data) })
+      .catch((err) => { if (active) setErrorQr(err.message || "Could not load QR") })
+      .finally(() => { if (active) setLoadingQr(false) })
+    return () => { active = false }
+  }, [link.id])
+
+  const src = qrSrc(qr)
+  const filename = `lumen-${link.slug}.png`
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[90] flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <Surface
+        variant="chrome"
+        glow
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 20 }}
+        className="relative w-full max-w-xs p-7 text-center"
+      >
+        {/* Close */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex size-7 items-center justify-center rounded-full text-[var(--text-lo)] transition-colors hover:text-white"
+          aria-label="Close"
+        >
+          <X className="size-4" />
+        </button>
+
+        <p className="mb-1 font-mono text-sm text-[var(--iris-cyan)]">/{link.slug}</p>
+        <p className="mb-5 text-xs text-[var(--text-lo)]">Scan to open · share anywhere</p>
+
+        {/* QR area */}
+        <div className="mx-auto flex size-48 items-center justify-center rounded-2xl bg-white">
+          {loadingQr ? (
+            <div className="size-6 animate-spin rounded-full border-2 border-[var(--accent)]/30 border-t-[var(--accent)]" />
+          ) : errorQr ? (
+            <p className="px-4 text-center text-xs text-red-500">{errorQr}</p>
+          ) : src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt={`QR code for ${link.slug}`} className="size-44 rounded-xl" />
+          ) : null}
+        </div>
+
+        {/* Download */}
+        {src && (
+          <a
+            href={src}
+            download={filename}
+            className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2.5 text-sm text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
+          >
+            <Download className="size-3.5" /> Download PNG
+          </a>
+        )}
+      </Surface>
+    </motion.div>
   )
 }
 

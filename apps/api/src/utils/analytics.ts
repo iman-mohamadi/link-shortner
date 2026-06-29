@@ -28,10 +28,25 @@ export const captureAnalytics = async (request: FastifyRequest, linkId: string) 
 
   const geo = geoip.lookup(ip);
   const country = geo?.country || 'Unknown';
+  const city    = geo?.city    || null;
+  const region  = geo?.region  || null;
+
+  // Anonymize IP: mask last octet of IPv4, last 80 bits of IPv6.
+  let anonIp: string | null = null;
+  if (ip) {
+    if (ip.includes(':')) {
+      // IPv6 — keep first 48 bits (3 groups), mask the rest
+      const parts = ip.split(':');
+      anonIp = parts.slice(0, 3).join(':') + ':xxxx:xxxx:xxxx:xxxx:xxxx';
+    } else {
+      // IPv4 — mask last octet
+      anonIp = ip.replace(/\.\d+$/, '.x');
+    }
+  }
 
   try {
     await prisma.analytics.create({
-      data: { linkId, country, device, browser, referrer },
+      data: { linkId, country, city, region, device, browser, referrer, ip: anonIp },
     });
   } catch (err) {
     console.error('Failed to save analytics:', err);

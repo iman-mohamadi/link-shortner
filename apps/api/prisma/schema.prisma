@@ -48,11 +48,18 @@ model Analytics {
   linkId    String
   link      Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
 
-  // Data for the Pro Dashboard
+  // Geo
   country   String?
+  city      String?
+  region    String?
+
+  // Client
   device    String?
   browser   String?
   referrer  String?
+
+  // Network (last octet masked for privacy, e.g. 1.2.3.x)
+  ip        String?
 
   timestamp DateTime @default(now())
 

@@ -9,8 +9,8 @@ export function Footer() {
           <div className="max-w-xs">
             <Logo />
             <p className="mt-4 text-sm text-[var(--text-mid)]">
-              Links that bend light. A premium link engine for people who care
-              about the details.
+              Forge short links that convert. Real-time analytics, QR codes,
+              and custom slugs — built for people who move fast.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
@@ -32,8 +32,8 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/[0.06] pt-6 text-xs text-[var(--text-lo)] sm:flex-row">
-          <span>© {new Date().getFullYear()} Lumen. Crafted in the dark.</span>
-          <span className="font-display tracking-[0.2em] text-iris">BEND THE LIGHT</span>
+          <span>© {new Date().getFullYear()} RizO. Crafted in the dark.</span>
+          <span className="font-display tracking-[0.2em] text-iris">FORGE. TRACK. CONVERT.</span>
         </div>
       </div>
     </footer>

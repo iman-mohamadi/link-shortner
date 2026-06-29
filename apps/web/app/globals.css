@@ -13,16 +13,16 @@
   --ink-600: #20232b;
   --ink-500: #2c3038;
 
-  /* ---- Single accent (indigo) — all "iris-*" tokens map to one hue ---- */
-  --accent: #6366f1;
-  --accent-hi: #818cf8;
-  --accent-lo: #4f51d6;
+  /* ---- RizO accent — electric violet brand system ---- */
+  --accent: #7c3aed;
+  --accent-hi: #a78bfa;
+  --accent-lo: #5b21b6;
 
-  --iris-cyan: var(--accent-hi);
-  --iris-azure: var(--accent);
-  --iris-violet: var(--accent);
-  --iris-magenta: var(--accent);
-  --iris-amber: var(--accent-hi);
+  --iris-cyan: var(--accent-hi);       /* violet-400 — highlights, icons         */
+  --iris-azure: var(--accent);          /* violet-600 — brand primary             */
+  --iris-violet: var(--accent-lo);      /* violet-800 — depth, hover              */
+  --iris-magenta: #f43f5e;              /* rose-500   — danger/delete (distinct)  */
+  --iris-amber: #fbbf24;                /* amber-400  — warm accent               */
 
   /* ---- Chrome / neutral text ---- */
   --chrome-hi: rgba(255, 255, 255, 0.94);
@@ -40,12 +40,12 @@
   --glass-stroke: rgba(255, 255, 255, 0.08);
   --glass-fill: rgba(255, 255, 255, 0.025);
 
-  /* Solid accent — no rainbow. Kept as a gradient var for compatibility. */
+  /* RizO violet gradient vars */
   --iris-gradient: linear-gradient(180deg, var(--accent-hi), var(--accent));
   --iris-gradient-soft: linear-gradient(
     180deg,
-    rgba(99, 102, 241, 0.16),
-    rgba(99, 102, 241, 0.1)
+    rgba(124, 58, 237, 0.16),
+    rgba(124, 58, 237, 0.10)
   );
 }
 
@@ -96,14 +96,98 @@ body {
 /* ============================================================================
    Surfaces — glass + chrome
    ============================================================================ */
+
+/*
+  Real frosted glass: the key is backdrop-filter combined with a subtle
+  inner top-edge highlight (specular) and a faint outer shadow for depth.
+*/
 .glass {
-  background: var(--glass-fill);
-  border: 1px solid var(--glass-stroke);
+  background: rgba(255, 255, 255, 0.038);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 4px 24px rgba(0, 0, 0, 0.22),
+    0 1px 4px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.058);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  backdrop-filter: blur(40px) saturate(190%) brightness(1.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    0 8px 40px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.16),
+    0 0 0 0.5px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+/*
+  Apple "Liquid Glass" — deep blur + layered specular highlights + noise texture.
+  The key is the top-edge inset highlight (inset 0 1.5px 0) which creates the
+  "light hitting glass" specular that makes it look like real frosted glass.
+  Noise overlay applied via ::before sits below content via z-index: -1.
+*/
+.liquid-glass {
+  /* Slightly higher fill so the surface reads as a solid material, not a ghost */
+  background: rgba(255, 255, 255, 0.072);
+  /* Pump saturation so background colors bleed through vividly, brightness lifts the fill */
+  backdrop-filter: blur(44px) saturate(210%) brightness(1.08);
+  -webkit-backdrop-filter: blur(44px) saturate(210%) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow:
+    /* ① Top-edge specular — the defining "glass" sheen */
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.42),
+    /* ② Micro bottom anchor shadow */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    /* ③ Faint left/right edge glints for roundness */
+    inset 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset -1px 0 0 rgba(255, 255, 255, 0.08),
+    /* ④ Outer depth stack */
+    0 8px 40px rgba(0, 0, 0, 0.30),
+    0 2px 8px rgba(0, 0, 0, 0.16),
+    /* ⑤ Ultra-thin outer rim for separation from background */
+    0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Frosted noise grain — gives glass its tactile "frosted" texture */
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Hero input pill — premium liquid glass with iris accent halo */
+.liquid-glass-pill {
+  background: rgba(255, 255, 255, 0.078);
+  backdrop-filter: blur(52px) saturate(220%) brightness(1.06);
+  -webkit-backdrop-filter: blur(52px) saturate(220%) brightness(1.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset -1px 0 0 rgba(255, 255, 255, 0.08),
+    0 8px 48px rgba(0, 0, 0, 0.32),
+    0 2px 8px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(99, 102, 241, 0.10);
+  overflow: hidden;
 }
 
 /* Flat surfaces — refract is a no-op now (kept so existing markup is valid) */
@@ -122,10 +206,46 @@ body {
    Glows
    ============================================================================ */
 .glow-iris {
-  box-shadow: 0 8px 24px -10px rgba(99, 102, 241, 0.55);
+  box-shadow:
+    0 4px 16px -4px rgba(124, 58, 237, 0.50),
+    0 12px 32px -8px rgba(124, 58, 237, 0.30);
 }
 .glow-soft {
-  box-shadow: 0 24px 80px -28px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 16px 48px -12px rgba(0, 0, 0, 0.5),
+    0 4px 16px -4px rgba(0, 0, 0, 0.25);
+}
+
+/* Pro card: animated conic gradient border ring */
+@keyframes border-rotate {
+  to { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.pro-border-glow {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--ink-800), var(--ink-800)) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      var(--accent-lo)  0%,
+      var(--accent-hi)  30%,
+      #c4b5fd           50%,
+      var(--accent-hi)  70%,
+      var(--accent-lo)  100%
+    ) border-box;
+  animation: border-rotate 5s linear infinite;
+}
+
+/* Softer version for the ambient Pro glow beneath the card */
+@keyframes iris-pulse {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50%       { opacity: 0.28; transform: scale(1.08); }
 }
 
 .bg-iris {
@@ -194,16 +314,16 @@ body {
   background: var(--ink-900);
 }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(91, 140, 255, 0.4), rgba(255, 107, 214, 0.4));
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.45), rgba(167, 139, 250, 0.30));
   border-radius: 99px;
   border: 2px solid var(--ink-900);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(91, 140, 255, 0.7), rgba(255, 107, 214, 0.7));
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.70), rgba(167, 139, 250, 0.55));
 }
 
 ::selection {
-  background: rgba(155, 107, 255, 0.35);
+  background: rgba(124, 58, 237, 0.35);
   color: #fff;
 }
 

@@ -13,6 +13,7 @@ import { MagneticButton } from "@/components/ui/magnetic-button"
 import { Eyebrow } from "@/components/ui/kinetic-text"
 import { toast } from "@/components/ui/toaster"
 import { authApi } from "@/lib/api/auth"
+import { useHydratedAuth } from "@/lib/hooks/use-auth"
 import { ease } from "@/lib/motion"
 
 const PHONE_RE = /^09\d{9}$/
@@ -21,6 +22,12 @@ function AuthExperience() {
   const router = useRouter()
   const params = useSearchParams()
   const next = params.get("next") || "/dashboard"
+  const { isAuthed } = useHydratedAuth()
+
+  // Already logged in — send them where they were headed.
+  useEffect(() => {
+    if (isAuthed) router.replace(next)
+  }, [isAuthed, next, router])
 
   const [step, setStep] = useState<"phone" | "otp">("phone")
   const [phone, setPhone] = useState("")
@@ -46,9 +53,12 @@ function AuthExperience() {
       const res = await authApi.sendOtp({ phone })
       setStep("otp")
       startTimer()
-      // The API returns the code in development to ease demoing.
-      if (res?.code) toast.info(`Dev code: ${res.code}`)
-      else toast.success("Code sent")
+      // Only surface the dev OTP code in non-production builds.
+      if (res?.code && process.env.NODE_ENV !== "production") {
+        toast.info(`Dev OTP: ${res.code}`)
+      } else {
+        toast.success("Code sent")
+      }
     } catch (err: any) {
       setError(err.message || "Failed to send code")
     } finally {
@@ -61,7 +71,7 @@ function AuthExperience() {
     setError(null)
     try {
       await authApi.verifyOtp({ phone, code })
-      toast.success("Welcome to Lumen")
+      toast.success("Welcome to RizO")
       router.push(next)
     } catch (err: any) {
       setError(err.message || "Invalid code")
@@ -105,7 +115,7 @@ function AuthExperience() {
                 <Smartphone className="size-3 text-[var(--iris-cyan)]" /> Secure sign-in
               </Eyebrow>
               <h1 className="font-display text-3xl font-semibold tracking-tight text-white">
-                Enter the light.
+                Sign in to RizO.
               </h1>
               <p className="mt-2 text-sm text-[var(--text-mid)]">
                 We&apos;ll text a one-time code to your phone. No passwords, ever.
@@ -206,7 +216,7 @@ function AuthExperience() {
       </Surface>
 
       <p className="relative mt-8 max-w-xs text-center text-xs text-[var(--text-lo)]">
-        By continuing you agree to bend a little light. Protected by one-time codes.
+        By continuing you agree to RizO&apos;s terms. Protected by one-time codes — no passwords stored.
       </p>
     </main>
   )
