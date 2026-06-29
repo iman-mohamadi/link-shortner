@@ -11,7 +11,6 @@ export interface User {
 export interface Link {
   id: string;
   originalUrl: string;
-  shortCode?: string;
   slug: string;
   userId: string;
   expiresAt: string | null;
@@ -19,6 +18,9 @@ export interface Link {
   clicks: number;
   customSlug: boolean;
   isActive: boolean;
+  title: string | null;
+  description: string | null;
+  favicon: string | null;
   createdAt: string;
   updatedAt?: string;
   _count?: {
@@ -62,7 +64,6 @@ export interface CreateLinkInput {
   custom_alias?: string;
   expires_at?: string;
   password?: string;
-  metadata?: any;
 }
 
 export interface CreateLinkResponse {
@@ -96,8 +97,10 @@ export interface VerifyOtpResponse {
 export interface UpdateLinkInput {
   originalUrl?: string;
   slug?: string;
-  password?: string;
-  expiresAt?: string;
+  // `null` clears the field, a string sets it, omitted leaves it unchanged.
+  password?: string | null;
+  expiresAt?: string | null;
+  isActive?: boolean;
 }
 
 export interface LinkStatsResponse {

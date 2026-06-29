@@ -1,17 +1,20 @@
 import { FastifyInstance } from 'fastify';
+import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { createLinkHandler } from '../controllers/link.controller';
 import { redirectHandler } from '../controllers/redirect.controller';
 import { createLinkSchema } from '../schemas/link.schema';
 import { authenticate } from '../middlewares/auth.middleware';
 
 export async function linkRoutes(fastify: FastifyInstance) {
-  // Protected Route: The user must pass the `authenticate` guard to create a link
-  fastify.post(
-    '/create', 
-    { 
-      onRequest: [authenticate], // This runs BEFORE the controller
-      schema: { body: createLinkSchema } 
-    }, 
+  const app = fastify.withTypeProvider<ZodTypeProvider>();
+
+  // Protected Route: the user must pass the `authenticate` guard to create a link
+  app.post(
+    '/create',
+    {
+      onRequest: [authenticate], // runs BEFORE the controller
+      schema: { body: createLinkSchema },
+    },
     createLinkHandler
   );
 }

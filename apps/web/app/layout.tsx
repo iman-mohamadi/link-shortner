@@ -28,7 +28,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       className={cn(
-        "dark antialiased grain",
+        "dark antialiased",
         fontMono.variable,
         figtree.variable,
         display.variable

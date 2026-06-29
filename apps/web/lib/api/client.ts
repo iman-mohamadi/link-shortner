@@ -40,6 +40,8 @@ class ApiClient {
     this.token = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_token');
+      // Also clear the persisted zustand store so a reload stays logged out.
+      localStorage.removeItem('auth-storage');
     }
   }
 
@@ -67,9 +69,20 @@ class ApiClient {
       headers,
     });
 
-    const data = await response.json();
+    // Some responses (e.g. 204) have no JSON body.
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      // A 401 on an authenticated request means the session is gone/expired.
+      // Centralize logout + redirect here so every page recovers gracefully.
+      // (The OTP endpoints are called without a token, so they're unaffected.)
+      if (response.status === 401 && this.token) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
+          const next = encodeURIComponent(window.location.pathname);
+          window.location.href = `/auth?next=${next}`;
+        }
+      }
       throw new ApiError(
         response.status,
         data.error || data.message || 'An error occurred',

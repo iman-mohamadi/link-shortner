@@ -1,23 +1,60 @@
 import { redis } from '../config/redis';
 
-/**
- * Generates a 6-digit code and saves it to Redis with a 2-minute expiration.
- * Key format: "otp:phone_number"
- */
-export const generateAndStoreOTP = async (phone: string): Promise<string> => {
-  // Generate a random 6-digit number
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  
-  // Save to Redis: Key, Value, 'EX' (Expiration), Seconds (120s = 2 mins)
-  await redis.set(`otp:${phone}`, code, 'EX', 120);
-  
-  return code;
+const OTP_TTL = 120; // seconds a code stays valid
+const MAX_ATTEMPTS = 5; // verify attempts before the code is burned
+const RESEND_COOLDOWN = 60; // seconds between code requests
+
+const otpKey = (phone: string) => `otp:${phone}`;
+const attemptsKey = (phone: string) => `otp:attempts:${phone}`;
+const cooldownKey = (phone: string) => `otp:cooldown:${phone}`;
+
+/** Remaining cooldown (seconds) before another code may be requested. */
+export const getResendCooldown = async (phone: string): Promise<number> => {
+  const ttl = await redis.ttl(cooldownKey(phone));
+  return ttl > 0 ? ttl : 0;
 };
 
 /**
- * Validates the code provided by the user against the one in Redis.
+ * Generates a 6-digit code, stores it for OTP_TTL, resets the attempt counter
+ * and opens a resend cooldown — all in one round trip.
  */
-export const verifyOTP = async (phone: string, code: string): Promise<boolean> => {
-  const storedCode = await redis.get(`otp:${phone}`);
-  return storedCode === code;
+export const generateAndStoreOTP = async (phone: string): Promise<string> => {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await redis
+    .pipeline()
+    .set(otpKey(phone), code, 'EX', OTP_TTL)
+    .del(attemptsKey(phone))
+    .set(cooldownKey(phone), '1', 'EX', RESEND_COOLDOWN)
+    .exec();
+
+  return code;
+};
+
+export type VerifyResult =
+  | { ok: true }
+  | { ok: false; reason: 'expired' | 'invalid' | 'too_many_attempts' };
+
+/**
+ * Validates a code. On success the code is burned immediately (anti-replay).
+ * Brute force is capped at MAX_ATTEMPTS, after which the code is invalidated and
+ * the user must request a new one.
+ */
+export const verifyOTP = async (phone: string, code: string): Promise<VerifyResult> => {
+  const stored = await redis.get(otpKey(phone));
+  if (!stored) return { ok: false, reason: 'expired' };
+
+  const attempts = await redis.incr(attemptsKey(phone));
+  if (attempts === 1) await redis.expire(attemptsKey(phone), OTP_TTL);
+
+  if (attempts > MAX_ATTEMPTS) {
+    await redis.del(otpKey(phone));
+    return { ok: false, reason: 'too_many_attempts' };
+  }
+
+  if (stored !== code) return { ok: false, reason: 'invalid' };
+
+  // Success — burn the code and related keys so it can never be replayed.
+  await redis.del(otpKey(phone), attemptsKey(phone), cooldownKey(phone));
+  return { ok: true };
 };

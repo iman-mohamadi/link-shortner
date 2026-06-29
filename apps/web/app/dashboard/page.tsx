@@ -11,6 +11,7 @@ import {
   Link2,
   Lock,
   MousePointerClick,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -22,6 +23,7 @@ import { MagneticButton, MagneticLink } from "@/components/ui/magnetic-button"
 import { Badge, CopyButton, Skeleton, StatTile } from "@/components/ui/bits"
 import { Eyebrow } from "@/components/ui/kinetic-text"
 import { toast } from "@/components/ui/toaster"
+import { EditLinkModal } from "@/components/dashboard/edit-link-modal"
 import { useRequireAuth } from "@/lib/hooks/use-auth"
 import { linksApi } from "@/lib/api/links"
 import type { Link as LinkModel } from "@/lib/api/types"
@@ -30,11 +32,13 @@ import { reveal, viewport } from "@/lib/motion"
 
 export default function DashboardPage() {
   const { ready, user } = useRequireAuth()
+  const isPro = Boolean(user?.isPro)
   const [links, setLinks] = useState<LinkModel[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [pendingDelete, setPendingDelete] = useState<LinkModel | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editing, setEditing] = useState<LinkModel | null>(null)
 
   useEffect(() => {
     if (!ready) return
@@ -54,7 +58,10 @@ export default function DashboardPage() {
     const q = query.trim().toLowerCase()
     if (!q) return links
     return links.filter(
-      (l) => l.originalUrl.toLowerCase().includes(q) || l.slug.toLowerCase().includes(q)
+      (l) =>
+        l.originalUrl.toLowerCase().includes(q) ||
+        l.slug.toLowerCase().includes(q) ||
+        (l.title?.toLowerCase().includes(q) ?? false)
     )
   }, [links, query])
 
@@ -75,6 +82,23 @@ export default function DashboardPage() {
     }
   }
 
+  const toggleActive = async (link: LinkModel) => {
+    const next = !link.isActive
+    // Optimistic update — revert if the request fails.
+    setLinks((prev) => prev.map((l) => (l.id === link.id ? { ...l, isActive: next } : l)))
+    try {
+      await linksApi.updateLink(link.id, { isActive: next })
+      toast.success(next ? "Link enabled" : "Link paused")
+    } catch (err: any) {
+      setLinks((prev) => prev.map((l) => (l.id === link.id ? { ...l, isActive: link.isActive } : l)))
+      toast.error(err.message || "Could not update link")
+    }
+  }
+
+  const onSaved = (updated: LinkModel) => {
+    setLinks((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+  }
+
   if (!ready) return null
 
   return (
@@ -84,9 +108,7 @@ export default function DashboardPage() {
         {/* Header */}
         <motion.div variants={reveal} initial="hidden" animate="show" className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <Eyebrow className="mb-4">
-              Welcome back{user?.isPro ? "" : ""}
-            </Eyebrow>
+            <Eyebrow className="mb-4">Welcome back</Eyebrow>
             <h1 className="font-display text-4xl font-semibold tracking-tight text-chrome sm:text-5xl">
               Your links
             </h1>
@@ -115,7 +137,7 @@ export default function DashboardPage() {
         <div className="mt-10 max-w-md">
           <Field
             name="search"
-            placeholder="Search by slug or URL…"
+            placeholder="Search by title, slug or URL…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             icon={<Search className="size-5" />}
@@ -146,7 +168,12 @@ export default function DashboardPage() {
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ delay: (i % 3) * 0.04 }}
                   >
-                    <LinkCard link={link} onDelete={() => setPendingDelete(link)} />
+                    <LinkCard
+                      link={link}
+                      onDelete={() => setPendingDelete(link)}
+                      onEdit={() => setEditing(link)}
+                      onToggleActive={() => toggleActive(link)}
+                    />
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -154,6 +181,18 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Edit modal */}
+      <AnimatePresence>
+        {editing && (
+          <EditLinkModal
+            link={editing}
+            isPro={isPro}
+            onClose={() => setEditing(null)}
+            onSaved={onSaved}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Delete confirmation */}
       <AnimatePresence>
@@ -201,20 +240,35 @@ export default function DashboardPage() {
   )
 }
 
-function LinkCard({ link, onDelete }: { link: LinkModel; onDelete: () => void }) {
+function LinkCard({
+  link,
+  onDelete,
+  onEdit,
+  onToggleActive,
+}: {
+  link: LinkModel
+  onDelete: () => void
+  onEdit: () => void
+  onToggleActive: () => void
+}) {
   const url = shortUrl(link.slug)
   return (
-    <Surface variant="glass" className="group flex h-full flex-col p-5">
+    <Surface
+      variant="glass"
+      className={`group flex h-full flex-col p-5 transition-opacity ${link.isActive ? "" : "opacity-60"}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <Link
           href={url}
           target="_blank"
-          className="flex min-w-0 items-center gap-1.5 font-mono text-sm text-[var(--iris-cyan)] transition-colors hover:text-white"
+          className="flex min-w-0 items-center gap-2 font-mono text-sm text-[var(--iris-cyan)] transition-colors hover:text-white"
         >
+          <LinkFavicon favicon={link.favicon} />
           <span className="truncate">{shortDisplay(link.slug)}</span>
           <ExternalLink className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
         </Link>
         <div className="flex shrink-0 items-center gap-1.5">
+          {!link.isActive && <Badge tone="danger">paused</Badge>}
           {link.customSlug && <Badge tone="iris">custom</Badge>}
           {link.password && (
             <span className="text-[var(--text-lo)]" title="Password protected">
@@ -224,7 +278,15 @@ function LinkCard({ link, onDelete }: { link: LinkModel; onDelete: () => void })
         </div>
       </div>
 
-      <p className="mt-3 line-clamp-2 text-sm text-[var(--text-mid)]" title={link.originalUrl}>
+      {link.title && (
+        <p className="mt-3 truncate text-sm font-medium text-white" title={link.title}>
+          {link.title}
+        </p>
+      )}
+      <p
+        className={`line-clamp-2 text-sm text-[var(--text-mid)] ${link.title ? "mt-1" : "mt-3"}`}
+        title={link.originalUrl}
+      >
         {prettyUrl(link.originalUrl, 80)}
       </p>
 
@@ -239,6 +301,7 @@ function LinkCard({ link, onDelete }: { link: LinkModel; onDelete: () => void })
             {format(new Date(link.createdAt), "MMM d, yyyy")}
           </span>
         </div>
+        <ActiveToggle active={link.isActive} onToggle={onToggleActive} />
       </div>
 
       <div className="mt-4 flex items-center gap-2 border-t border-white/[0.06] pt-4">
@@ -251,6 +314,13 @@ function LinkCard({ link, onDelete }: { link: LinkModel; onDelete: () => void })
           <BarChart2 className="size-4" />
         </Link>
         <button
+          onClick={onEdit}
+          className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
+          aria-label="Edit link"
+        >
+          <Pencil className="size-4" />
+        </button>
+        <button
           onClick={onDelete}
           className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--text-mid)] transition-colors hover:border-[var(--iris-magenta)]/40 hover:text-[var(--iris-magenta)]"
           aria-label="Delete link"
@@ -259,6 +329,40 @@ function LinkCard({ link, onDelete }: { link: LinkModel; onDelete: () => void })
         </button>
       </div>
     </Surface>
+  )
+}
+
+function LinkFavicon({ favicon }: { favicon: string | null }) {
+  const [failed, setFailed] = useState(false)
+  if (!favicon || failed) {
+    return <Link2 className="size-4 shrink-0 text-[var(--text-lo)]" />
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={favicon}
+      alt=""
+      className="size-4 shrink-0 rounded-sm"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
+function ActiveToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      role="switch"
+      aria-checked={active}
+      aria-label={active ? "Pause link" : "Enable link"}
+      title={active ? "Pause link" : "Enable link"}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${active ? "bg-iris" : "bg-white/15"}`}
+    >
+      <span
+        className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${active ? "left-[18px]" : "left-0.5"}`}
+      />
+    </button>
   )
 }
 

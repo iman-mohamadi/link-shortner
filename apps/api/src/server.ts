@@ -1,48 +1,79 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
-import dotenv from 'dotenv';
-import { serializerCompiler, validatorCompiler, jsonSchemaTransform, ZodTypeProvider } from 'fastify-type-provider-zod';
+import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+import { env } from './config/env';
 import { authRoutes } from './routes/auth.routes';
 import { linkRoutes, publicRoutes } from './routes/link.routes';
 import { userRoutes } from './routes/user.routes';
 import { adminRoutes } from './routes/admin.routes';
-import { startClickBufferWorker } from './utils/click-buffer';
+import { billingRoutes } from './routes/billing.routes';
+import { startClickBufferWorker, stopClickBufferWorker } from './utils/click-buffer';
+import { redis } from './config/redis';
+import { prisma } from './config/prisma';
 
-dotenv.config();
-
-// 2. Add .withTypeProvider<ZodTypeProvider>()
 const fastify = Fastify({
-  logger: {
-    transport: {
-      target: 'pino-pretty',
-    },
-  },
+  trustProxy: true, // honor x-forwarded-* from our reverse proxy
+  logger: env.isDev
+    ? { transport: { target: 'pino-pretty' } }
+    : { level: 'info' },
 }).withTypeProvider<ZodTypeProvider>();
 
-// 3. Set the Zod Compilers
 fastify.setValidatorCompiler(validatorCompiler);
 fastify.setSerializerCompiler(serializerCompiler);
 
-fastify.register(cors, { origin: true });
-fastify.register(jwt, { secret: process.env.JWT_SECRET || 'raya-secret' });
+// Restrict CORS to known web origins instead of reflecting any origin.
+fastify.register(cors, {
+  origin: env.webOrigins,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+});
+fastify.register(jwt, { secret: env.jwtSecret });
+
+// Baseline security headers (no extra dependency required).
+fastify.addHook('onSend', async (_request, reply, payload) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('Referrer-Policy', 'no-referrer');
+  reply.header('X-DNS-Prefetch-Control', 'off');
+  return payload;
+});
+
+// Lightweight liveness/readiness probe.
+fastify.get('/health', async () => ({ status: 'ok', uptime: process.uptime() }));
 
 // Register Routes
 fastify.register(authRoutes, { prefix: '/api/auth' });
 fastify.register(linkRoutes, { prefix: '/api/links' });
 fastify.register(userRoutes, { prefix: '/api/user' });
 fastify.register(adminRoutes, { prefix: '/api/admin' });
-fastify.register(publicRoutes); 
+fastify.register(billingRoutes, { prefix: '/api/billing' });
+fastify.register(publicRoutes);
 
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  fastify.log.info(`Received ${signal}, shutting down gracefully…`);
+  try {
+    await stopClickBufferWorker(); // flush buffered clicks one last time
+    await fastify.close();
+    await redis.quit();
+    await prisma.$disconnect();
+    process.exit(0);
+  } catch (err) {
+    fastify.log.error(err, 'Error during shutdown');
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 const start = async () => {
   try {
-    const port = Number(process.env.PORT) || 5000;
-    
-    startClickBufferWorker(); 
-
-    await fastify.listen({ port, host: '0.0.0.0' });
-    console.log(`🚀 Raya API is gliding on http://localhost:${port}`);
+    startClickBufferWorker();
+    await fastify.listen({ port: env.port, host: '0.0.0.0' });
+    fastify.log.info(`🚀 Raya API is gliding on ${env.publicBaseUrl}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
