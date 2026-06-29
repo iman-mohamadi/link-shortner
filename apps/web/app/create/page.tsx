@@ -1,7 +1,8 @@
 "use client"
 
 import { Suspense, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowRight,
@@ -38,7 +39,6 @@ function ProLock() {
 }
 
 function CreateExperience() {
-  const router = useRouter()
   const params = useSearchParams()
   const { ready, user } = useRequireAuth()
   const isPro = Boolean(user?.isPro)
@@ -181,7 +181,11 @@ function CreateExperience() {
                   {!isPro && (
                     <div className="iris-border rounded-2xl bg-[var(--ink-800)] p-4 text-sm text-[var(--text-mid)]">
                       <span className="text-white">Custom slugs, passwords and expiry</span> are Pro
-                      features. You can still forge unlimited standard links for free.
+                      features.{" "}
+                      <Link href="/pricing" className="text-[var(--iris-cyan)] underline-offset-2 hover:underline">
+                        Upgrade to Pro
+                      </Link>{" "}
+                      for unlimited links and full control.
                     </div>
                   )}
 

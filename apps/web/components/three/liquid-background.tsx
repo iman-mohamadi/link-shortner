@@ -11,7 +11,7 @@ const vertex = /* glsl */ `
   }
 `
 
-/* Domain-warped fbm noise mapped through an oil-slick cosine palette. */
+/* Domain-warped fbm noise mapped through a single indigo accent — clean + visible. */
 const fragment = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
@@ -49,14 +49,10 @@ const fragment = /* glsl */ `
     return v;
   }
 
-  // Inigo Quilez cosine palette — tuned to cyan/azure/violet/magenta/amber.
-  vec3 palette(float t){
-    vec3 a = vec3(0.46, 0.42, 0.55);
-    vec3 b = vec3(0.42, 0.40, 0.45);
-    vec3 c = vec3(1.00, 1.00, 1.00);
-    vec3 d = vec3(0.10, 0.55, 0.85);
-    return a + b*cos(6.28318*(c*t+d));
-  }
+  // Single indigo accent ramp: dark base -> indigo -> light indigo.
+  const vec3 BASE   = vec3(0.031, 0.035, 0.047); // near-black canvas
+  const vec3 ACCENT = vec3(0.388, 0.400, 0.945); // #6366f1
+  const vec3 ACCENT_HI = vec3(0.506, 0.549, 0.972); // #818cf8
 
   void main(){
     vec2 uv = (gl_FragCoord.xy - 0.5*u_res) / u_res.y;
@@ -71,16 +67,16 @@ const fragment = /* glsl */ `
                   fbm(uv + 4.0*q + vec2(8.3,2.8) - 0.13*t));
     float f = fbm(uv + 4.0*r);
 
-    float tone = f + 0.6*r.x + 0.3*q.y;
-    vec3 col = palette(tone + 0.15*t);
+    // Shape the noise into visible flowing bands.
+    float flow = smoothstep(0.25, 0.95, f + 0.5*r.x + 0.25*q.y);
 
-    // Deep charcoal base, iridescence rides on top.
-    vec3 base = vec3(0.043, 0.051, 0.071);
-    col = base + col * (0.10 + 0.16*u_intensity) * smoothstep(0.1, 1.0, f);
+    // Blend the two indigo tones, then lift off the dark base — clearly visible.
+    vec3 accent = mix(ACCENT, ACCENT_HI, smoothstep(0.4, 1.0, flow));
+    vec3 col = BASE + accent * (0.42 + 0.30*u_intensity) * flow;
 
-    // subtle vignette
-    float vig = smoothstep(1.25, 0.2, length(uv));
-    col *= 0.55 + 0.45*vig;
+    // Soft vignette keeps focus toward the centre.
+    float vig = smoothstep(1.45, 0.15, length(uv));
+    col *= 0.45 + 0.55*vig;
 
     gl_FragColor = vec4(col, 1.0);
   }
@@ -140,14 +136,15 @@ export function LiquidBackground({ intensity = 1, className }: Props) {
     window.addEventListener("resize", onResize)
 
     let raf = 0
-    const clock = new THREE.Clock()
-    const render = () => {
-      uniforms.u_time.value = reduce ? 4.0 : clock.getElapsedTime()
+    let start = 0
+    const render = (now: number) => {
+      if (!start) start = now
+      uniforms.u_time.value = reduce ? 4.0 : (now - start) / 1000
       uniforms.u_mouse.value.lerp(target, 0.04)
       renderer.render(scene, camera)
       if (!reduce) raf = requestAnimationFrame(render)
     }
-    render()
+    raf = requestAnimationFrame(render)
 
     return () => {
       cancelAnimationFrame(raf)

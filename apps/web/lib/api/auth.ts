@@ -50,12 +50,34 @@ export const authApi = {
       return response.data;
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.status === 401) {
-          authApi.logout();
-        }
         throw new Error(error.message);
       }
       throw error;
+    }
+  },
+
+  /**
+   * Re-fetches the profile and syncs it into the store. The JWT carries the
+   * plan from login time, so this is how a fresh upgrade/promotion becomes
+   * visible without forcing the user to log out and back in.
+   */
+  refreshProfile: async () => {
+    try {
+      const profile: any = await authApi.getUserProfile();
+      if (profile?.id) {
+        useAuthStore.setState((state) => ({
+          user: {
+            id: profile.id,
+            phone: profile.phone,
+            isPro: Boolean(profile.isPro),
+            createdAt: profile.createdAt ?? state.user?.createdAt ?? '',
+          },
+        }));
+      }
+      return profile;
+    } catch {
+      // Non-fatal: a 401 is already handled centrally by the API client.
+      return null;
     }
   },
 };

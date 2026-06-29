@@ -1,60 +1,88 @@
 import { prisma } from '../config/prisma';
 import { redis } from '../config/redis';
 
-const FLUSH_INTERVAL = 10000; // 10 seconds
+const FLUSH_INTERVAL = 10_000; // 10 seconds
+const CLICK_PREFIX = 'clicks:';
+const key = (linkId: string) => `${CLICK_PREFIX}${linkId}`;
 
-// Called by the redirect controller on every click
+let timer: NodeJS.Timeout | null = null;
+
+/** Buffer a click in Redis on every redirect (cheap, non-blocking). */
 export const incrementClickCount = async (linkId: string) => {
-  const key = `clicks:${linkId}`;
-  await redis.incr(key);
+  await redis.incr(key(linkId));
 };
 
-// Starts the background job to flush Redis to Postgres
-export const startClickBufferWorker = () => {
-  setInterval(async () => {
+/** Pending (not-yet-flushed) click count for a link — used for accurate live totals. */
+export const getBufferedClicks = async (linkId: string): Promise<number> => {
+  const value = await redis.get(key(linkId));
+  const n = value ? parseInt(value, 10) : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/** Collect buffered click keys without the blocking `KEYS` command. */
+async function scanClickKeys(): Promise<string[]> {
+  const found: string[] = [];
+  let cursor = '0';
+  do {
+    const [next, batch] = await redis.scan(cursor, 'MATCH', `${CLICK_PREFIX}*`, 'COUNT', 200);
+    cursor = next;
+    found.push(...batch);
+  } while (cursor !== '0');
+  return found;
+}
+
+/**
+ * Flush buffered counts into Postgres.
+ *
+ * Uses an atomic GETDEL per key so clicks that land between read and delete are
+ * never lost (the previous GET-then-DEL window dropped them). Each link is
+ * updated independently: if one link was deleted we drop its count; if a DB
+ * write fails we return the count to Redis so it retries next cycle, instead of
+ * failing the whole batch in a single all-or-nothing transaction.
+ */
+export const flushClickBuffer = async () => {
+  const keys = await scanClickKeys();
+  if (keys.length === 0) return;
+
+  let flushed = 0;
+  for (const k of keys) {
+    const countStr = await redis.getdel(k); // atomic read + remove
+    const count = countStr ? parseInt(countStr, 10) : 0;
+    if (!Number.isFinite(count) || count <= 0) continue;
+
+    const linkId = k.slice(CLICK_PREFIX.length);
     try {
-      // 1. Find all active click keys in Redis
-      const keys = await redis.keys('clicks:*');
-      if (keys.length === 0) return;
-
-      // 2. Fetch all current counts
-      const pipeline = redis.pipeline();
-      keys.forEach((key) => pipeline.get(key));
-      
-      const results = await pipeline.exec();
-      if (!results) return;
-
-      const updates: any[] = [];
-      const deletePipeline = redis.pipeline();
-
-      // 3. Prepare Prisma database updates
-      results.forEach((result, index) => {
-        const [err, countStr] = result as [Error | null, string | null];
-        if (!err && countStr) {
-          const count = parseInt(countStr, 10);
-          const linkId = keys[index].split(':')[1];
-          
-          if (count > 0) {
-            updates.push(
-              prisma.link.update({
-                where: { id: linkId },
-                data: { clicks: { increment: count } },
-              })
-            );
-            // Queue this key for deletion once we know we've processed it
-            deletePipeline.del(keys[index]);
-          }
-        }
+      await prisma.link.update({
+        where: { id: linkId },
+        data: { clicks: { increment: count } },
       });
-
-      // 4. Execute all database writes in a single, fast transaction
-      if (updates.length > 0) {
-        await prisma.$transaction(updates);
-        await deletePipeline.exec();
-        console.log(`⚡ Flushed clicks for ${updates.length} links to database.`);
-      }
-    } catch (error) {
-      console.error('Failed to flush click buffer to database:', error);
+      flushed += 1;
+    } catch (err: any) {
+      if (err?.code === 'P2025') continue; // link deleted — discard the count
+      // Transient failure: put the count back so it isn't lost.
+      await redis.incrby(k, count).catch(() => {});
+      console.error(`Failed to flush clicks for ${linkId}, re-buffered ${count}:`, err);
     }
+  }
+
+  if (flushed > 0) {
+    console.log(`⚡ Flushed clicks for ${flushed} link(s) to database.`);
+  }
+};
+
+/** Start the background flush loop (idempotent). */
+export const startClickBufferWorker = () => {
+  if (timer) return;
+  timer = setInterval(() => {
+    flushClickBuffer().catch((err) => console.error('Click buffer flush failed:', err));
   }, FLUSH_INTERVAL);
+};
+
+/** Stop the loop and perform a final flush so in-flight counts aren't dropped on shutdown. */
+export const stopClickBufferWorker = async () => {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  await flushClickBuffer().catch((err) => console.error('Final click flush failed:', err));
 };

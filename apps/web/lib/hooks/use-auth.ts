@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/lib/store/auth"
 import { apiClient } from "@/lib/api/client"
+import { authApi } from "@/lib/api/auth"
 
 /** Tracks zustand-persist hydration so we never flash the wrong UI. */
 export function useHydratedAuth() {
@@ -20,13 +21,30 @@ export function useHydratedAuth() {
   return { hydrated, token, user, isAuthed: hydrated && Boolean(token) }
 }
 
-/** Redirects to /auth when there is no session. */
+/** Redirects to /auth when there is no session, and syncs plan status from /me. */
 export function useRequireAuth() {
   const router = useRouter()
   const { hydrated, token, user } = useHydratedAuth()
+  const refreshed = useRef(false)
 
   useEffect(() => {
-    if (hydrated && !token) router.replace("/auth")
+    if (!hydrated) return
+    if (!token) {
+      // Preserve where the user was headed (incl. query) so they land back
+      // here after signing in — this powers the "paste a URL, then sign in to
+      // forge it" onboarding path.
+      const dest =
+        typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}`
+          : "/dashboard"
+      router.replace(`/auth?next=${encodeURIComponent(dest)}`)
+      return
+    }
+    // Refresh the live profile once per mount so an upgrade reflects immediately.
+    if (!refreshed.current) {
+      refreshed.current = true
+      void authApi.refreshProfile()
+    }
   }, [hydrated, token, router])
 
   return { ready: hydrated && Boolean(token), user }

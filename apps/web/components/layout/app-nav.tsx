@@ -1,9 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { LayoutDashboard, Plus, LogOut, Sparkles } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
+import { LayoutDashboard, Plus, LogOut, Sparkles, Menu, X } from "lucide-react"
 import { cn } from "@workspace/ui/lib/utils"
 import { authApi } from "@/lib/api/auth"
 import { useHydratedAuth } from "@/lib/hooks/use-auth"
@@ -19,6 +20,7 @@ export function AppNav() {
   const pathname = usePathname()
   const router = useRouter()
   const { user } = useHydratedAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const logout = () => {
     authApi.logout()
@@ -35,6 +37,7 @@ export function AppNav() {
       <nav className="glass-strong refract flex items-center justify-between rounded-full px-3 py-2 pl-5 glow-soft">
         <Logo />
 
+        {/* Desktop links */}
         <div className="hidden items-center gap-1 sm:flex">
           {links.map((l) => {
             const active = pathname.startsWith(l.href)
@@ -61,25 +64,87 @@ export function AppNav() {
           })}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {user?.isPro ? (
             <Badge tone="pro">
               <Sparkles className="size-3" /> PRO
             </Badge>
           ) : (
-            <Link href="/create" className="hidden text-xs text-[var(--text-mid)] hover:text-white sm:block">
-              {user?.phone}
+            <Link
+              href="/pricing"
+              className="hidden rounded-full border border-[var(--iris-azure)]/30 bg-iris-soft px-3 py-1.5 text-xs font-medium text-[var(--iris-cyan)] transition-colors hover:border-[var(--iris-azure)]/60 sm:block"
+            >
+              Upgrade
             </Link>
           )}
           <button
             onClick={logout}
-            className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white"
+            className="hidden size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[var(--text-mid)] transition-colors hover:border-white/25 hover:text-white sm:flex"
             aria-label="Log out"
           >
             <LogOut className="size-4" />
           </button>
+
+          {/* Mobile menu toggle */}
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[var(--text-mid)] transition-colors hover:text-white sm:hidden"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+          </button>
         </div>
       </nav>
+
+      {/* Mobile dropdown */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="glass-strong refract mt-2 flex flex-col gap-1 rounded-3xl p-3 sm:hidden"
+          >
+            {links.map((l) => {
+              const active = pathname.startsWith(l.href)
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors",
+                    active ? "bg-white/[0.07] text-white" : "text-[var(--text-mid)] hover:text-white"
+                  )}
+                >
+                  <l.icon className="size-4" />
+                  {l.label}
+                </Link>
+              )
+            })}
+            {!user?.isPro && (
+              <Link
+                href="/pricing"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-[var(--iris-cyan)] transition-colors hover:text-white"
+              >
+                <Sparkles className="size-4" /> Upgrade to Pro
+              </Link>
+            )}
+            <button
+              onClick={() => {
+                setMenuOpen(false)
+                logout()
+              }}
+              className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm text-[var(--text-mid)] transition-colors hover:text-white"
+            >
+              <LogOut className="size-4" /> Log out
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.header>
   )
 }

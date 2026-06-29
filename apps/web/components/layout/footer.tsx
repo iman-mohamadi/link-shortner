@@ -20,6 +20,9 @@ export function Footer() {
             <Link href="#how" className="text-[var(--text-mid)] transition-colors hover:text-white">
               How it works
             </Link>
+            <Link href="/pricing" className="text-[var(--text-mid)] transition-colors hover:text-white">
+              Pricing
+            </Link>
             <Link href="/auth" className="text-[var(--text-mid)] transition-colors hover:text-white">
               Sign in
             </Link>

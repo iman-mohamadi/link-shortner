@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { promoteUserHandler, getUserStatsHandler } from '../controllers/admin.controller';
+import { requireAdmin } from '../middlewares/admin.middleware';
 
 export async function adminRoutes(fastify: FastifyInstance) {
-  // TODO: Add admin middleware guard in production
-  // fastify.addHook('onRequest', adminGuard);
+  // Every admin route requires a valid JWT whose phone is in the allowlist.
+  fastify.addHook('onRequest', requireAdmin);
 
   fastify.patch('/promote/:phone', promoteUserHandler);
   fastify.get('/stats', getUserStatsHandler);

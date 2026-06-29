@@ -1,13 +1,11 @@
 import QRCode from 'qrcode';
+import { env } from '../config/env';
 
 export const generateQRCode = async (slug: string) => {
-  const url = `http://localhost:5000/${slug}`;
-  // Returns a Base64 Data URI that your Next.js img tag can display directly
-  return await QRCode.toDataURL(url, {
+  const url = `${env.publicBaseUrl}/${slug}`;
+  // Returns a Base64 Data URI that the frontend <img> can render directly.
+  return QRCode.toDataURL(url, {
     margin: 2,
-    color: {
-      dark: '#000000',
-      light: '#ffffff',
-    },
+    color: { dark: '#000000', light: '#ffffff' },
   });
 };

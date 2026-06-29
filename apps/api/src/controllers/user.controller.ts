@@ -2,25 +2,33 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../config/prisma';
 import { UpdateLinkInput } from '../schemas/user.schema';
 import { hash } from 'bcrypt';
+import { getCurrentUser } from '../utils/auth';
+import { getBufferedClicks } from '../utils/click-buffer';
+
+const SLUG_REGEX = /^[a-z0-9-]+$/;
 
 // 1. Fetch all links for the dashboard
 export const getMyLinksHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  const user = request.user as any;
+  const jwtUser = request.user as { id: string };
 
   try {
     const links = await prisma.link.findMany({
-      where: { userId: user.id },
+      where: { userId: jwtUser.id },
       orderBy: { createdAt: 'desc' },
-      include: {
-        _count: {
-          select: { analytics: true }
-        }
-      }
+      include: { _count: { select: { analytics: true } } },
     });
+
+    // Fold in clicks still buffered in Redis so the dashboard total is accurate.
+    const withBuffered = await Promise.all(
+      links.map(async (link) => ({
+        ...link,
+        clicks: link.clicks + (await getBufferedClicks(link.id)),
+      }))
+    );
 
     return reply.status(200).send({
       message: 'Links retrieved successfully',
-      data: links
+      data: withBuffered,
     });
   } catch (error: any) {
     request.log.error(error);
@@ -28,58 +36,64 @@ export const getMyLinksHandler = async (request: FastifyRequest, reply: FastifyR
   }
 };
 
-// 2. Update a link
+// 2. Update a link (edit destination/slug, toggle active, set or clear Pro fields)
 export const updateLinkHandler = async (
   request: FastifyRequest<{ Params: { id: string }; Body: UpdateLinkInput }>,
   reply: FastifyReply
 ) => {
   try {
     const { id } = request.params;
-    const { slug, originalUrl, password, expiresAt } = request.body;
-    const user = request.user as any;
+    const { slug, originalUrl, password, expiresAt, isActive } = request.body;
+
+    const user = await getCurrentUser((request.user as { id: string }).id);
+    if (!user) return reply.status(401).send({ error: 'User not found' });
 
     const link = await prisma.link.findUnique({ where: { id } });
-
     if (!link || link.userId !== user.id) {
       return reply.status(404).send({ error: 'Link not found or unauthorized' });
     }
 
-    // Pro feature validation
-    if (slug && slug !== link.slug && !user.isPro) {
-      return reply.status(403).send({ error: 'Custom slugs are a Pro feature.' });
+    const updateData: Record<string, unknown> = {};
+
+    if (originalUrl !== undefined) updateData.originalUrl = originalUrl;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    if (slug !== undefined && slug !== link.slug) {
+      if (!user.isPro) return reply.status(403).send({ error: 'Custom slugs are a Pro feature.' });
+      if (!SLUG_REGEX.test(slug)) {
+        return reply.status(400).send({ error: 'Slug may only contain lowercase letters, numbers, and hyphens.' });
+      }
+      updateData.slug = slug;
+      updateData.customSlug = true;
     }
 
-    if (password && !user.isPro) {
-      return reply.status(403).send({ error: 'Password protection is a Pro feature.' });
+    // `null` clears the field; a string sets it (Pro-gated); `undefined` leaves it.
+    if (password === null) {
+      updateData.password = null;
+    } else if (password !== undefined) {
+      if (!user.isPro) return reply.status(403).send({ error: 'Password protection is a Pro feature.' });
+      updateData.password = await hash(password, 10);
     }
 
-    if (expiresAt && !user.isPro) {
-      return reply.status(403).send({ error: 'Link expiration is a Pro feature.' });
+    if (expiresAt === null) {
+      updateData.expiresAt = null;
+    } else if (expiresAt !== undefined) {
+      if (!user.isPro) return reply.status(403).send({ error: 'Link expiration is a Pro feature.' });
+      updateData.expiresAt = new Date(expiresAt);
     }
 
-    // Hash password if provided
-    let updateData: any = {};
-    if (originalUrl) updateData.originalUrl = originalUrl;
-    if (slug) updateData.slug = slug;
-    if (expiresAt) updateData.expiresAt = new Date(expiresAt);
-    if (password) updateData.password = await hash(password, 10);
+    if (Object.keys(updateData).length === 0) {
+      return reply.status(400).send({ error: 'No changes provided.' });
+    }
 
-    const updatedLink = await prisma.link.update({
-      where: { id },
-      data: updateData,
-    });
+    const updatedLink = await prisma.link.update({ where: { id }, data: updateData });
 
-    return reply.status(200).send({
-      message: 'Link updated successfully',
-      data: updatedLink
-    });
+    return reply.status(200).send({ message: 'Link updated successfully', data: updatedLink });
   } catch (error: any) {
     request.log.error(error);
-
     if (error.code === 'P2002') {
       return reply.status(409).send({ error: 'This slug is already in use.' });
     }
-
     return reply.status(500).send({ error: 'Failed to update link' });
   }
 };
@@ -88,11 +102,10 @@ export const updateLinkHandler = async (
 export const deleteLinkHandler = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
   try {
     const { id } = request.params;
-    const user = request.user as any;
+    const jwtUser = request.user as { id: string };
 
     const link = await prisma.link.findUnique({ where: { id } });
-
-    if (!link || link.userId !== user.id) {
+    if (!link || link.userId !== jwtUser.id) {
       return reply.status(404).send({ error: 'Link not found' });
     }
 
@@ -112,47 +125,35 @@ export const getLinkStatsHandler = async (
 ) => {
   try {
     const { id } = request.params;
-    const user = request.user as any;
+    const jwtUser = request.user as { id: string };
 
-    const link = await prisma.link.findUnique({
-      where: { id },
-      include: { analytics: true }
-    });
-
-    if (!link || link.userId !== user.id) {
+    const link = await prisma.link.findUnique({ where: { id } });
+    if (!link || link.userId !== jwtUser.id) {
       return reply.status(404).send({ error: 'Link not found' });
     }
 
-    const countries = await prisma.analytics.groupBy({
-      by: ['country'],
-      where: { linkId: id },
-      _count: { country: true },
-    });
-
-    const devices = await prisma.analytics.groupBy({
-      by: ['device'],
-      where: { linkId: id },
-      _count: { device: true },
-    });
-
-    const browsers = await prisma.analytics.groupBy({
-      by: ['browser'],
-      where: { linkId: id },
-      _count: { browser: true },
-    });
+    // Aggregate in the DB and fetch only the latest activity — never load every
+    // analytics row into memory.
+    const [countries, devices, browsers, recentActivity, buffered] = await Promise.all([
+      prisma.analytics.groupBy({ by: ['country'], where: { linkId: id }, _count: { country: true } }),
+      prisma.analytics.groupBy({ by: ['device'], where: { linkId: id }, _count: { device: true } }),
+      prisma.analytics.groupBy({ by: ['browser'], where: { linkId: id }, _count: { browser: true } }),
+      prisma.analytics.findMany({ where: { linkId: id }, orderBy: { timestamp: 'desc' }, take: 10 }),
+      getBufferedClicks(id),
+    ]);
 
     return reply.status(200).send({
       message: 'Stats retrieved successfully',
       data: {
-        totalClicks: link.clicks,
+        totalClicks: link.clicks + buffered,
         linkId: link.id,
         slug: link.slug,
-        countries: countries.map(c => ({ country: c.country || 'Unknown', count: c._count.country })),
-        devices: devices.map(d => ({ device: d.device || 'Unknown', count: d._count.device })),
-        browsers: browsers.map(b => ({ browser: b.browser || 'Unknown', count: b._count.browser })),
-        recentActivity: link.analytics.slice(-10).reverse(),
-        createdAt: link.createdAt
-      }
+        countries: countries.map((c) => ({ country: c.country || 'Unknown', count: c._count.country })),
+        devices: devices.map((d) => ({ device: d.device || 'Unknown', count: d._count.device })),
+        browsers: browsers.map((b) => ({ browser: b.browser || 'Unknown', count: b._count.browser })),
+        recentActivity,
+        createdAt: link.createdAt,
+      },
     });
   } catch (error: any) {
     request.log.error(error);
