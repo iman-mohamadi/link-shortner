@@ -11,7 +11,7 @@ import { billingRoutes } from './routes/billing.routes';
 import { startClickBufferWorker, stopClickBufferWorker } from './utils/click-buffer';
 import { redis } from './config/redis';
 import { prisma } from './config/prisma';
-
+console.log(env)
 const fastify = Fastify({
   trustProxy: true, // honor x-forwarded-* from our reverse proxy
   logger: env.isDev
@@ -24,7 +24,7 @@ fastify.setSerializerCompiler(serializerCompiler);
 
 // Restrict CORS to known web origins instead of reflecting any origin.
 fastify.register(cors, {
-  origin: env.webOrigins,
+  origin: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
 });
 fastify.register(jwt, { secret: env.jwtSecret });
