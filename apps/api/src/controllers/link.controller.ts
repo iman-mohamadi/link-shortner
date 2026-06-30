@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { CreateLinkType } from '@repo/types';
-import { prisma } from '../config/prisma';
+import { CreateLinkType } from '../types/index.js';
+import { prisma } from '../config/prisma.js';
 import { nanoid } from 'nanoid';
 import { hash } from 'bcrypt';
 import { generateQRCode } from '../utils/qrcode';
