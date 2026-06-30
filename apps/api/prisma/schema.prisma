@@ -9,12 +9,16 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  phone       String   @unique
-  isPro       Boolean  @default(false)
-  links       Link[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String       @id @default(uuid())
+  phone        String       @unique
+  isPro        Boolean      @default(false)
+  isBusiness   Boolean      @default(false)
+  links        Link[]
+  ownedTeam    Team?        @relation("TeamOwner")
+  teamMembers  TeamMember[]
+  apiKeys      ApiKey[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model Link {
@@ -41,6 +45,85 @@ model Link {
   createdAt    DateTime  @default(now())
 
   @@index([userId])
+}
+
+model Team {
+  id        String        @id @default(uuid())
+  name      String
+  ownerId   String        @unique
+  owner     User          @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   TeamMember[]
+  invites   TeamInvite[]
+  domain    CustomDomain?
+  brand     BrandSettings?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model TeamMember {
+  id       String   @id @default(uuid())
+  teamId   String
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  phone     String
+  token     String   @unique @default(uuid())
+  expiresAt DateTime
+  accepted  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+  @@index([token])
+  @@index([phone])
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([keyHash])
+}
+
+model CustomDomain {
+  id          String   @id @default(uuid())
+  teamId      String   @unique
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  domain      String   @unique
+  verified    Boolean  @default(false)
+  verifyToken String   @unique @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([domain])
+}
+
+model BrandSettings {
+  id           String   @id @default(uuid())
+  teamId       String   @unique
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  logoUrl      String?
+  primaryColor String?
+  companyName  String?
+  updatedAt    DateTime @updatedAt
 }
 
 model Analytics {
