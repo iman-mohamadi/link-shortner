@@ -12,6 +12,7 @@ import { env } from '../config/env';
 const VALID_URL_REGEX = /^https?:\/\/.+\..+/;
 const CUSTOM_ALIAS_REGEX = /^[a-z0-9-]+$/;
 
+
 export const createLinkHandler = async (
   request: FastifyRequest<{ Body: CreateLinkType }>,
   reply: FastifyReply
